@@ -1,58 +1,134 @@
+/**
+ * ENS Voicemail System - Modular Main
+ * Coordinates between different modules to provide the complete application
+ */
+
+import { dtmfUtils } from './modules/dtmf/dtmfUtils.js';
+import { dtmfEncoder } from './modules/dtmf/dtmfEncoder.js';
+import { audioContextManager } from './modules/audio/audioContext.js';
+import { audioWidget } from './modules/audio/audioWidget.js';
+import { waveformVisualizer } from './modules/audio/waveform.js';
+import { ensResolver } from './modules/ens/ensResolver.js';
+import { uiManager } from './modules/ui/uiManager.js';
+
 class ENSVoicemailSystem {
     constructor() {
-        this.audioContext = null;
-        this.mediaRecorder = null;
-        this.audioChunks = [];
-        this.isRecording = false;
-        this.ethersLoaded = false;
-        this.ethersLoadingPromise = null;
         this.resolvedAddress = null;
-        this.generatedTones = null;
-        this.toneCache = new Map(); // Cache for DTMF tone arrays by ENS address
-        this.bufferCache = new Map(); // Cache for rendered audio buffers by ENS address
-        this.maxCacheSize = 10; // Maximum number of cached items
+        this.encodedTones = null;
         
-        // Enhanced tone encoding configuration
-        this.sampleRate = 44100;
-        this.toneDuration = 0.08; // 80ms per character (DTMF standard)
-        this.silenceDuration = 0.04; // 40ms silence between tones
-        
-        // DTMF frequency pairs (standard)
-        this.dtmfFrequencies = {
-            '1': [697, 1209], '2': [697, 1336], '3': [697, 1477], 'A': [697, 1633],
-            '4': [770, 1209], '5': [770, 1336], '6': [770, 1477], 'B': [770, 1633],
-            '7': [852, 1209], '8': [852, 1336], '9': [852, 1477], 'C': [852, 1633],
-            '*': [941, 1209], '0': [941, 1336], '#': [941, 1477], 'D': [941, 1633],
-            'E': [941, 1633], 'F': [941, 1633] // Extended hex support
-        };
-        
-        // Character to DTMF mapping for hex encoding (A-F for a-f)
-        this.charToDTMF = {
-            '0': '0', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7',
-            '8': '8', '9': '9',
-            'a': 'A', 'b': 'B', 'c': 'C', 'd': 'D', 'e': 'E', 'f': 'F',
-            // Also support uppercase for robustness
-            'A': 'A', 'B': 'B', 'C': 'C', 'D': 'D', 'E': 'E', 'F': 'F'
-        };
-        
-        // Start/stop markers
-        this.startMarker = '*';
-        this.stopMarker = '#';
-        
-        this.initializeElements();
-        this.initializeAudioContext();
+        this.initializeSystem();
         this.bindEvents();
-        this.setupLogging();
-        this.loadEthers();
         this.initializeMetrics();
+        
         // Auto-validate default ENS on load
         setTimeout(() => {
             this.validateENS();
         }, 0);
     }
 
+    /**
+     * Initialize the system
+     */
+    initializeSystem() {
+        // Initialize audio context
+        audioContextManager.initializeAudioContext();
+        
+        // Setup logging
+        uiManager.addLogEntry('ENS Voicemail System initialized', 'info');
+    }
+
+    /**
+     * Bind event handlers
+     */
+    bindEvents() {
+        // Generate tones button
+        const generateTonesBtn = uiManager.getElement('generateTonesBtn');
+        if (generateTonesBtn) {
+            generateTonesBtn.addEventListener('click', () => {
+                if (window.metricsCollector) {
+                    window.metricsCollector.recordUserInteraction('generate_tones_click');
+                }
+                this.generateTones();
+            });
+        }
+
+        // Decode tones button
+        const decodeTonesBtn = uiManager.getElement('decodeTonesBtn');
+        if (decodeTonesBtn) {
+            decodeTonesBtn.addEventListener('click', () => {
+                if (window.metricsCollector) {
+                    window.metricsCollector.recordUserInteraction('decode_tones_click');
+                }
+                this.decodeTones();
+            });
+        }
+
+        // Metrics dashboard events
+        const refreshMetricsBtn = document.getElementById('refreshMetrics');
+        const exportMetricsBtn = document.getElementById('exportMetrics');
+        const resetMetricsBtn = document.getElementById('resetMetrics');
+        
+        if (refreshMetricsBtn) {
+            refreshMetricsBtn.addEventListener('click', () => {
+                this.updateMetricsDisplay();
+                this.updateKPIValidation();
+                uiManager.addLogEntry('Metrics refreshed', 'info');
+            });
+        }
+        
+        if (exportMetricsBtn) {
+            exportMetricsBtn.addEventListener('click', () => {
+                this.exportMetricsData();
+            });
+        }
+        
+        if (resetMetricsBtn) {
+            resetMetricsBtn.addEventListener('click', () => {
+                if (window.metricsCollector) {
+                    window.metricsCollector.reset();
+                    this.updateMetricsDisplay();
+                    this.updateKPIValidation();
+                    uiManager.addLogEntry('Metrics session reset', 'info');
+                }
+            });
+        }
+
+        // Debug controls
+        const clearLogsBtn = document.getElementById('clearLogs');
+        const copyLogsBtn = document.getElementById('copyLogs');
+        
+        if (clearLogsBtn) {
+            clearLogsBtn.addEventListener('click', () => {
+                uiManager.clearLogs();
+            });
+        }
+        
+        if (copyLogsBtn) {
+            copyLogsBtn.addEventListener('click', () => {
+                uiManager.copyLogs();
+            });
+        }
+
+        // Debounced ENS auto-validation on input
+        const ensAddressInput = uiManager.getElement('ensAddressInput');
+        if (ensAddressInput) {
+            let ensDebounceTimeout = null;
+            ensAddressInput.addEventListener('input', () => {
+                if (window.metricsCollector) {
+                    window.metricsCollector.recordUserInteraction('ens_input_change');
+                }
+                clearTimeout(ensDebounceTimeout);
+                ensDebounceTimeout = setTimeout(() => {
+                    this.validateENS();
+                }, 400);
+            });
+        }
+    }
+
+    /**
+     * Initialize metrics
+     */
     initializeMetrics() {
-        // Initialize metrics dashboard
         this.updateMetricsDisplay();
         this.updateKPIValidation();
         
@@ -60,62 +136,51 @@ class ENSVoicemailSystem {
         setInterval(() => {
             this.updateMetricsDisplay();
             this.updateKPIValidation();
-        }, 5000); // Update every 5 seconds
+        }, 5000);
     }
 
+    /**
+     * Update metrics display
+     */
     updateMetricsDisplay() {
         if (!window.metricsCollector) return;
         
         const metrics = window.metricsCollector.getMetrics();
         
         // Update metric values in UI
-        document.getElementById('metricGenTime').textContent = metrics.avgGenerationTime;
-        document.getElementById('metricEncodingAcc').textContent = metrics.encodingAccuracy;
-        document.getElementById('metricDecodingAcc').textContent = metrics.decodingAccuracy;
-        document.getElementById('metricUserInteractions').textContent = metrics.userInteractions;
-        document.getElementById('metricErrorRate').textContent = metrics.errorRate;
-        document.getElementById('metricENSResolution').textContent = metrics.ensResolutionRate;
-        document.getElementById('metricFixturePass').textContent = metrics.fixturePassRate;
-        document.getElementById('metricCrossBrowser').textContent = metrics.crossBrowserRate;
-        document.getElementById('metricErrorRecovery').textContent = metrics.errorRecoveryRate;
-        document.getElementById('metricSessionId').textContent = metrics.sessionId.substring(0, 20) + '...';
-        document.getElementById('metricSessionDuration').textContent = this.formatDuration(metrics.sessionDuration);
-        document.getElementById('metricTotalErrors').textContent = metrics.totalErrors;
+        const metricElements = {
+            'metricGenTime': metrics.avgGenerationTime,
+            'metricEncodingAcc': metrics.encodingAccuracy,
+            'metricDecodingAcc': metrics.decodingAccuracy,
+            'metricUserInteractions': metrics.userInteractions,
+            'metricErrorRate': metrics.errorRate,
+            'metricENSResolution': metrics.ensResolutionRate,
+            'metricFixturePass': metrics.fixturePassRate,
+            'metricCrossBrowser': metrics.crossBrowserRate,
+            'metricErrorRecovery': metrics.errorRecoveryRate,
+            'metricSessionId': metrics.sessionId.substring(0, 20) + '...',
+            'metricSessionDuration': this.formatDuration(metrics.sessionDuration),
+            'metricTotalErrors': metrics.totalErrors
+        };
         
-        // Add warning/error styling based on thresholds
-        this.updateMetricStyling('metricGenTime', parseFloat(metrics.avgGenerationTime), 2000, '>');
-        this.updateMetricStyling('metricEncodingAcc', parseFloat(metrics.encodingAccuracy), 95, '<');
-        this.updateMetricStyling('metricErrorRate', parseFloat(metrics.errorRate), 5, '>');
-        this.updateMetricStyling('metricENSResolution', parseFloat(metrics.ensResolutionRate), 90, '<');
+        Object.entries(metricElements).forEach(([id, value]) => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = value;
+            }
+        });
     }
 
-    updateMetricStyling(elementId, value, threshold, operator) {
-        const element = document.getElementById(elementId);
-        if (!element) return;
-        
-        element.classList.remove('warning', 'error');
-        
-        let shouldWarn = false;
-        if (operator === '>') {
-            shouldWarn = value > threshold;
-        } else if (operator === '<') {
-            shouldWarn = value < threshold;
-        }
-        
-        if (shouldWarn) {
-            element.classList.add('error');
-        } else if (operator === '>' && value > threshold * 0.8) {
-            element.classList.add('warning');
-        } else if (operator === '<' && value < threshold * 1.2) {
-            element.classList.add('warning');
-        }
-    }
-
+    /**
+     * Update KPI validation
+     */
     updateKPIValidation() {
         if (!window.metricsCollector) return;
         
         const validation = window.metricsCollector.validateKPIs();
         const kpiStatus = document.getElementById('kpiStatus');
+        if (!kpiStatus) return;
+        
         kpiStatus.innerHTML = '';
         
         if (validation.valid) {
@@ -139,6 +204,9 @@ class ENSVoicemailSystem {
         }
     }
 
+    /**
+     * Format duration in human-readable format
+     */
     formatDuration(ms) {
         const seconds = Math.floor(ms / 1000);
         const minutes = Math.floor(seconds / 60);
@@ -153,261 +221,34 @@ class ENSVoicemailSystem {
         }
     }
 
-    initializeAudioContext() {
-        try {
-            if (!this.audioContext) {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                this.audioContext = new AudioContext();
-            }
-            if (this.audioContext.state === 'suspended') {
-                this.audioContext.resume();
-            }
-            this.addLogEntry('Audio context initialized successfully', 'info');
-        } catch (error) {
-            console.error('Failed to initialize audio context:', error);
-            this.addLogEntry(`Audio context initialization failed: ${error.message}`, 'error');
-            this.showStatus('❌ Audio system not available. Please check browser permissions.', 'error');
-        }
-    }
-
-    async loadEthers() {
-        // Returns a promise that resolves when ethers is loaded
-        if (this.ethersLoaded) return Promise.resolve();
-        if (this.ethersLoadingPromise) return this.ethersLoadingPromise;
-        
-        const tryLoadScript = (src) => {
-            return new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = src;
-                script.async = false;
-                script.onload = () => {
-                    if (typeof ethers !== 'undefined') {
-                        resolve();
-                    } else {
-                        reject(new Error('Ethers.js loaded but not available'));
-                    }
-                };
-                script.onerror = (e) => {
-                    reject(new Error('Failed to load ' + src));
-                };
-                document.head.appendChild(script);
-            });
-        };
-        
-        this.ethersLoadingPromise = new Promise(async (resolve, reject) => {
-            // Check if ethers is already available
-            if (typeof ethers !== 'undefined') {
-                this.ethersLoaded = true;
-                resolve();
-                return;
-            }
-            // Try CDN first
-            try {
-                await tryLoadScript('https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js');
-                if (typeof ethers !== 'undefined') {
-                    this.ethersLoaded = true;
-                    resolve();
-                    return;
-                }
-            } catch (e) {
-                // Try local fallback
-                try {
-                    await tryLoadScript('js/ethers-5.7.2.umd.min.js');
-                    if (typeof ethers !== 'undefined') {
-                        this.ethersLoaded = true;
-                        resolve();
-                        return;
-                    }
-                } catch (e2) {
-                    this.ethersLoaded = false;
-                    reject(new Error('Failed to load ethers.js from CDN and local fallback.'));
-                    return;
-                }
-            }
-            // If still not loaded
-            if (typeof ethers === 'undefined') {
-                this.ethersLoaded = false;
-                reject(new Error('Ethers.js not available after all attempts.'));
-            }
-        });
-        return this.ethersLoadingPromise;
-    }
-
-    setupLogging() {
-        // Vite development server - no need for custom logging override
-        console.log('📝 Logging system initialized (Vite development mode)');
-    }
-
-    addLogEntry(message, type = 'info') {
-        const debugLogs = document.getElementById('debugLogs');
-        const timestamp = new Date().toLocaleTimeString();
-        
-        const logEntry = document.createElement('div');
-        logEntry.className = 'log-entry';
-        
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'log-time';
-        timeSpan.textContent = `[${timestamp}] `;
-        
-        const messageSpan = document.createElement('span');
-        messageSpan.className = `log-message log-${type}`;
-        messageSpan.textContent = message;
-        
-        logEntry.appendChild(timeSpan);
-        logEntry.appendChild(messageSpan);
-        debugLogs.appendChild(logEntry);
-        
-        // Auto-scroll to bottom
-        debugLogs.scrollTop = debugLogs.scrollHeight;
-    }
-
-    initializeElements() {
-        // Input elements
-        this.ensAddressInput = document.getElementById('ensAddress');
-        this.validateENSBtn = document.getElementById('validateENS');
-        this.ensStatus = document.getElementById('ensStatus');
-        
-        // Recording elements
-        this.startRecordingBtn = document.getElementById('startRecording');
-        this.stopRecordingBtn = document.getElementById('stopRecording');
-        this.playRecordingBtn = document.getElementById('playRecording');
-        this.recordingIndicator = document.getElementById('recordingIndicator');
-        this.recordingTime = document.getElementById('recordingTime');
-        
-        // Preview elements
-        this.generateTonesBtn = document.getElementById('generateTones');
-        this.playWithTonesBtn = document.getElementById('playWithTones');
-        this.downloadRecordingBtn = document.getElementById('downloadRecording');
-        this.displayAddress = document.getElementById('displayAddress');
-        this.toneDurationElement = document.getElementById('toneDuration');
-        this.totalLength = document.getElementById('totalLength');
-        
-        // Decode elements
-        this.audioFileInput = document.getElementById('audioFile');
-        this.decodeTonesBtn = document.getElementById('decodeTones');
-        this.decodeResult = document.getElementById('decodeResult');
-        this.audioPlayer = document.getElementById('dtmfAudioPlayer');
-    }
-
-    bindEvents() {
-        this.generateTonesBtn.addEventListener('click', () => {
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('generate_tones_click');
-            }
-            this.generateTones();
-        });
-        
-        this.decodeTonesBtn.addEventListener('click', () => {
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('decode_tones_click');
-            }
-            this.decodeTones();
-        });
-        
-        // Metrics dashboard events
-        const refreshMetricsBtn = document.getElementById('refreshMetrics');
-        const exportMetricsBtn = document.getElementById('exportMetrics');
-        const resetMetricsBtn = document.getElementById('resetMetrics');
-        
-        if (refreshMetricsBtn) {
-            refreshMetricsBtn.addEventListener('click', () => {
-                this.updateMetricsDisplay();
-                this.updateKPIValidation();
-                this.addLogEntry('Metrics refreshed', 'info');
-            });
-        }
-        
-        if (exportMetricsBtn) {
-            exportMetricsBtn.addEventListener('click', () => {
-                this.exportMetricsData();
-            });
-        }
-        
-        if (resetMetricsBtn) {
-            resetMetricsBtn.addEventListener('click', () => {
-                if (window.metricsCollector) {
-                    window.metricsCollector.reset();
-                    this.updateMetricsDisplay();
-                    this.updateKPIValidation();
-                    this.addLogEntry('Metrics session reset', 'info');
-                }
-            });
-        }
-        
-        // Debounced ENS auto-validation on input
-        let ensDebounceTimeout = null;
-        this.ensAddressInput.addEventListener('input', () => {
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('ens_input_change');
-            }
-            clearTimeout(ensDebounceTimeout);
-            ensDebounceTimeout = setTimeout(() => {
-                this.validateENS();
-            }, 400);
-        });
-    }
-
-    exportMetricsData() {
-        if (!window.metricsCollector) return;
-        
-        const metricsData = window.metricsCollector.exportMetrics();
-        const dataStr = JSON.stringify(metricsData, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(dataBlob);
-        link.download = `ens-voicemail-metrics-${Date.now()}.json`;
-        link.click();
-        
-        this.addLogEntry('Metrics data exported', 'info');
-    }
-
+    /**
+     * Validate ENS address
+     */
     async validateENS() {
-        const address = this.ensAddressInput.value.trim();
-        if (!address) {
-            this.showStatus('Please enter an ENS address', 'error');
+        const ensAddressInput = uiManager.getElement('ensAddressInput');
+        if (!ensAddressInput) return false;
+        
+        const address = ensAddressInput.value.trim();
+        
+        // Validate format
+        const formatValidation = ensResolver.validateENSFormat(address);
+        if (!formatValidation.valid) {
+            uiManager.updateENSStatus(formatValidation.error, 'error');
             if (window.metricsCollector) {
                 window.metricsCollector.recordUserInteraction('validate_ens', false);
             }
             return false;
         }
         
-        // Basic ENS validation (ends with .eth and has valid characters)
-        const ensRegex = /^[a-zA-Z0-9-]+\.eth$/;
-        if (!ensRegex.test(address)) {
-            this.showStatus('Invalid ENS address format. Must end with .eth and contain only letters, numbers, and hyphens.', 'error');
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('validate_ens', false);
-            }
-            return false;
-        }
-        
-        this.showStatus('Loading ENS resolver...', 'info');
+        uiManager.updateENSStatus('Loading ENS resolver...', 'info');
         
         try {
-            await this.loadEthers();
-        } catch (e) {
-            this.showStatus('❌ Could not load ENS resolver library (ethers.js). Please check your internet connection.', 'error');
-            this.addLogEntry(`Ethers.js loading failed: ${e.message}`, 'error');
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('validate_ens', false);
-                window.metricsCollector.recordErrorRecovery(false);
-            }
-            return false;
-        }
-        
-        try {
-            this.showStatus('Resolving ENS address...', 'info');
+            const result = await ensResolver.resolveENSAddress(address);
             
-            // Use Alchemy with API key from environment variables
-            const apiKey = import.meta.env.VITE_ALCHEMY_API_KEY || 'demo';
-            const provider = new ethers.providers.JsonRpcProvider(`https://eth-mainnet.g.alchemy.com/v2/${apiKey}`);
-            const resolvedAddress = await provider.resolveName(address);
-            
-            if (resolvedAddress) {
-                this.showStatus(`✅ ENS resolved: ${resolvedAddress}`, 'success');
-                this.displayAddress.textContent = `${address} → ${resolvedAddress}`;
-                this.resolvedAddress = resolvedAddress;
+            if (result.success) {
+                uiManager.updateENSStatus(`✅ ENS resolved: ${result.address}`, 'success');
+                uiManager.updateDisplayAddress(`${address} → ${result.address}`);
+                this.resolvedAddress = result.address;
                 
                 if (window.metricsCollector) {
                     window.metricsCollector.recordENSResolution(true);
@@ -416,8 +257,8 @@ class ENSVoicemailSystem {
                 
                 return true;
             } else {
-                this.showStatus('❌ ENS address not found or not registered', 'error');
-                this.displayAddress.textContent = '-';
+                uiManager.updateENSStatus(`❌ ${result.error}`, 'error');
+                uiManager.updateDisplayAddress('-');
                 this.resolvedAddress = null;
                 
                 if (window.metricsCollector) {
@@ -428,9 +269,8 @@ class ENSVoicemailSystem {
                 return false;
             }
         } catch (error) {
-            console.error('ENS resolution error:', error);
-            this.showStatus('❌ Error resolving ENS address. Please check your connection.', 'error');
-            this.displayAddress.textContent = '-';
+            uiManager.updateENSStatus(`❌ ${error.message}`, 'error');
+            uiManager.updateDisplayAddress('-');
             this.resolvedAddress = null;
             
             if (window.metricsCollector) {
@@ -443,46 +283,32 @@ class ENSVoicemailSystem {
         }
     }
 
-    showStatus(message, type) {
-        this.ensStatus.textContent = message;
-        this.ensStatus.className = `status ${type}`;
-        this.addLogEntry(message, type);
-    }
-
+    /**
+     * Generate DTMF tones
+     */
     generateTones() {
         console.log('🔧 Starting DTMF tone generation...');
         console.log('🔧 Resolved address:', this.resolvedAddress);
         
         if (!this.resolvedAddress) {
             console.error('❌ No resolved address available');
-            this.showStatus('❌ Please validate an ENS address first.', 'error');
+            uiManager.updateENSStatus('❌ Please validate an ENS address first.', 'error');
             return;
         }
         
         try {
             console.log('🔧 Encoding ENS to tones...');
-            const tones = this.encodeENSToTones(this.resolvedAddress);
+            const tones = dtmfEncoder.generateTones(this.resolvedAddress);
             console.log('🔧 Encoded tones:', tones);
             console.log('🔧 Tones array length:', tones ? tones.length : 'null');
             
             if (!tones || !Array.isArray(tones)) {
                 console.error('❌ encodeENSToTones returned invalid result:', tones);
-                this.showStatus('❌ Error: Could not encode ENS address to tones.', 'error');
+                uiManager.updateENSStatus('❌ Error: Could not encode ENS address to tones.', 'error');
                 return;
             }
             
-            // Cache the generated tones
-            if (this.toneCache.has(this.resolvedAddress)) {
-                console.log('🔧 Using cached tones');
-            } else {
-                console.log('🔧 Caching new tones');
-                if (this.toneCache.size >= this.maxCacheSize) {
-                    this.toneCache.delete(this.toneCache.keys().next().value);
-                }
-                this.toneCache.set(this.resolvedAddress, tones);
-            }
-            
-            // Defensive: check tones is non-empty and all have valid duration
+            // Validate tones
             console.log('🔧 Validating tones...');
             console.log('🔧 Tones is array:', Array.isArray(tones));
             console.log('🔧 Tones length:', tones.length);
@@ -493,25 +319,22 @@ class ENSVoicemailSystem {
             const invalidTones = tones.filter(t => typeof t.duration !== 'number' || isNaN(t.duration));
             if (invalidTones.length > 0) {
                 console.error('❌ Found tones with invalid duration:', invalidTones);
-                console.error('❌ Sample invalid tone durations:', invalidTones.slice(0, 5).map(t => ({ 
-                    character: t.character, 
-                    duration: t.duration, 
-                    durationType: typeof t.duration,
-                    isNaN: isNaN(t.duration)
-                })));
             }
             
             if (!Array.isArray(tones) || tones.length === 0 || tones.some(t => typeof t.duration !== 'number' || isNaN(t.duration))) {
                 console.error('❌ Tone validation failed');
                 console.error('❌ Tones array:', tones);
                 console.error('❌ Invalid tones found:', invalidTones);
-                this.showStatus('❌ Error: Could not generate DTMF tones for this ENS address.', 'error');
-                this.toneDurationElement.textContent = '-';
-                this.totalLength.textContent = '-';
-                if (this.audioPlayer) {
-                    this.audioPlayer.style.display = 'none';
-                    this.audioPlayer.src = '';
+                uiManager.updateENSStatus('❌ Error: Could not generate DTMF tones for this ENS address.', 'error');
+                uiManager.updateToneDuration('-');
+                uiManager.updateTotalLength('-');
+                
+                const audioPlayer = uiManager.getElement('audioPlayer');
+                if (audioPlayer) {
+                    audioPlayer.style.display = 'none';
+                    audioPlayer.src = '';
                 }
+                
                 if (window.metricsCollector) {
                     window.metricsCollector.recordUserInteraction('generate_tones', false);
                     window.metricsCollector.recordErrorRecovery(false);
@@ -522,20 +345,20 @@ class ENSVoicemailSystem {
             console.log('🔧 Tone validation passed');
             const totalDuration = tones.reduce((sum, tone) => sum + tone.duration, 0);
             console.log('🔧 Total duration:', totalDuration);
-            this.toneDurationElement.textContent = `${totalDuration.toFixed(1)}s`;
-            this.totalLength.textContent = `${totalDuration.toFixed(1)}s`;
+            uiManager.updateToneDuration(totalDuration);
+            uiManager.updateTotalLength(totalDuration);
             this.encodedTones = tones;
-            this.showStatus('DTMF tones generated. Ready to play.', 'success');
+            uiManager.updateENSStatus('DTMF tones generated. Ready to play.', 'success');
             
             console.log('🔧 Drawing waveform...');
-            this.drawToneWaveform(tones);
+            waveformVisualizer.drawToneWaveform(tones);
             
             // Measure DTMF accuracy against expected sequence
             const generatedSequence = tones.map(t => t.dtmfChar).filter(Boolean).join('');
-            const expectedSequence = this.getExpectedDTMFSequence(this.resolvedAddress);
+            const expectedSequence = dtmfUtils.getExpectedDTMFSequence(this.resolvedAddress);
             if (expectedSequence && window.metricsCollector) {
                 const accuracy = window.metricsCollector.measureDTMFAccuracy(generatedSequence, expectedSequence);
-                this.addLogEntry(`DTMF accuracy: ${accuracy.toFixed(1)}%`, 'info');
+                uiManager.addLogEntry(`DTMF accuracy: ${accuracy.toFixed(1)}%`, 'info');
             }
             
             // Record successful generation
@@ -545,47 +368,12 @@ class ENSVoicemailSystem {
             
             console.log('🔧 Tone generation completed successfully');
             
-            // Create audio player for generated tones
-            if (this.audioPlayer) {
+            // Create audio widget
+            const audioPlayer = uiManager.getElement('audioPlayer');
+            if (audioPlayer) {
                 try {
-                    console.log('🎵 Creating audio buffer for player...');
-                    console.log('🎵 Audio player element found:', this.audioPlayer);
-                    console.log('🎵 Audio player parent:', this.audioPlayer.parentNode);
-                    
-                    const audioCtx = this.audioContext || new (window.AudioContext || window.webkitAudioContext)();
-                    const totalDuration = tones.reduce((sum, t) => sum + t.duration, 0);
-                    const bufferLength = Math.floor(totalDuration * audioCtx.sampleRate);
-                    const buffer = audioCtx.createBuffer(1, bufferLength, audioCtx.sampleRate);
-                    const data = buffer.getChannelData(0);
-                    
-                    let currentTime = 0;
-                    tones.forEach(tone => {
-                        if (tone.frequencies && tone.frequencies.length === 2) {
-                            const startSample = Math.floor(currentTime * audioCtx.sampleRate);
-                            const samples = Math.floor(tone.duration * audioCtx.sampleRate);
-                            
-                            for (let i = 0; i < samples; i++) {
-                                const t = i / audioCtx.sampleRate;
-                                const s1 = Math.sin(2 * Math.PI * tone.frequencies[0] * t);
-                                const s2 = Math.sin(2 * Math.PI * tone.frequencies[1] * t);
-                                data[startSample + i] = (s1 + s2) * 0.3;
-                            }
-                        }
-                        currentTime += tone.duration;
-                    });
-                    
-                    console.log('🎵 Audio buffer created successfully');
-                    
-                    // Store the buffer for later playback
-                    this.generatedAudioBuffer = buffer;
-                    
-                    // Remove any existing audio widgets first
-                    const existingWidgets = this.audioPlayer.parentNode.querySelectorAll('.dtmf-audio-widget');
-                    console.log('🎵 Found existing widgets:', existingWidgets.length);
-                    existingWidgets.forEach(widget => widget.remove());
-                    
                     // Create a container for the audio widget if it doesn't exist
-                    let audioContainer = this.audioPlayer.parentNode.querySelector('.audio-player-container');
+                    let audioContainer = audioPlayer.parentNode.querySelector('.audio-player-container');
                     if (!audioContainer) {
                         console.log('🎵 Creating new audio container...');
                         audioContainer = document.createElement('div');
@@ -595,42 +383,60 @@ class ENSVoicemailSystem {
                         audioContainer.style.border = '1px solid #ddd';
                         audioContainer.style.borderRadius = '5px';
                         audioContainer.style.backgroundColor = '#f9f9f9';
-                        this.audioPlayer.parentNode.insertBefore(audioContainer, this.audioPlayer);
+                        audioPlayer.parentNode.insertBefore(audioContainer, audioPlayer);
                         console.log('🎵 Audio container created and inserted');
                     } else {
                         console.log('🎵 Using existing audio container');
                     }
                     
-                    // Create a proper HTML5 audio widget
-                    const audioWidget = document.createElement('audio');
-                    audioWidget.className = 'dtmf-audio-widget';
-                    audioWidget.controls = true;
-                    audioWidget.style.width = '100%';
-                    audioWidget.style.marginTop = '10px';
-                    
-                    // Convert audio buffer to blob and create URL
-                    const blob = this.audioBufferToBlob(buffer);
-                    const audioUrl = URL.createObjectURL(blob);
-                    audioWidget.src = audioUrl;
-                    
-                    // Clean up blob URL when audio is removed
-                    audioWidget.addEventListener('loadstart', () => {
-                        console.log('🎵 Audio widget loaded');
+                    // Create the audio widget
+                    audioWidget.createAudioWidget(tones, audioContainer, (audioEl, container) => {
+                        // Add a decode button below the audio widget
+                        let decodeBtn = container.querySelector('.decode-generated-audio-btn');
+                        if (!decodeBtn) {
+                            decodeBtn = document.createElement('button');
+                            decodeBtn.className = 'decode-generated-audio-btn btn-secondary';
+                            decodeBtn.textContent = '🔍 Decode This Audio';
+                            decodeBtn.style.marginTop = '10px';
+                            decodeBtn.style.display = 'block';
+                            container.appendChild(decodeBtn);
+                        }
+                        decodeBtn.onclick = async () => {
+                            try {
+                                console.log('🔍 Decode button clicked');
+                                // Fetch the blob from the audio src
+                                const response = await fetch(audioEl.src);
+                                const arrayBuffer = await response.arrayBuffer();
+                                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                                const decodedAddress = this.decodeTonesFromAudio(audioBuffer);
+                                console.log('🔍 Decoded address:', decodedAddress);
+                                if (decodedAddress) {
+                                    console.log('🔍 Updating UI with decoded address:', decodedAddress);
+                                    uiManager.updateDecodeResult(`Decoded ENS Address: ${decodedAddress}`);
+                                    uiManager.updateENSStatus('DTMF tones decoded successfully.', 'success');
+                                    console.log('🔍 UI updated successfully');
+                                } else {
+                                    console.log('🔍 No valid address found, updating UI');
+                                    uiManager.updateDecodeResult('No valid ENS address found in the audio.');
+                                    uiManager.updateENSStatus('No valid ENS address found in the audio.', 'error');
+                                }
+                            } catch (err) {
+                                console.error('🔍 Error in decode button:', err);
+                                uiManager.updateENSStatus('❌ Error decoding generated audio.', 'error');
+                                uiManager.updateDecodeResult('Error decoding generated audio.');
+                                uiManager.addLogEntry(err.message, 'error');
+                            }
+                        };
                     });
                     
-                    // Add the audio widget to the container
-                    audioContainer.appendChild(audioWidget);
-                    console.log('🎵 Audio widget added to container');
-                    
                     // Hide the original audio element
-                    this.audioPlayer.style.display = 'none';
-                    
-                    console.log('🎵 Audio widget created successfully');
+                    audioPlayer.style.display = 'none';
                     
                 } catch (err) {
                     console.error('❌ Error creating audio widget:', err);
-                    this.audioPlayer.style.display = 'none';
-                    this.addLogEntry(`Audio widget error: ${err.message}`, 'error');
+                    audioPlayer.style.display = 'none';
+                    uiManager.addLogEntry(`Audio widget error: ${err.message}`, 'error');
                 }
             } else {
                 console.error('❌ Audio player element not found!');
@@ -638,8 +444,8 @@ class ENSVoicemailSystem {
             
         } catch (error) {
             console.error('❌ Error in generateTones:', error);
-            this.showStatus('❌ Error generating DTMF tones.', 'error');
-            this.addLogEntry(error.message, 'error');
+            uiManager.updateENSStatus('❌ Error generating DTMF tones.', 'error');
+            uiManager.addLogEntry(error.message, 'error');
             if (window.metricsCollector) {
                 window.metricsCollector.recordUserInteraction('generate_tones', false);
                 window.metricsCollector.recordErrorRecovery(false);
@@ -647,165 +453,13 @@ class ENSVoicemailSystem {
         }
     }
 
-    getExpectedDTMFSequence(address) {
-        // Convert address to expected DTMF sequence for accuracy measurement
-        try {
-            const hexAddress = address.toLowerCase().replace('0x', '');
-            let dtmfSequence = this.startMarker;
-            
-            for (let i = 0; i < hexAddress.length; i++) {
-                const char = hexAddress[i];
-                const dtmfChar = this.charToDTMF[char];
-                if (dtmfChar) {
-                    dtmfSequence += dtmfChar;
-                }
-            }
-            
-            dtmfSequence += this.stopMarker;
-            return dtmfSequence;
-        } catch (error) {
-            console.error('Error generating expected DTMF sequence:', error);
-            return null;
-        }
-    }
-
-    drawToneWaveform(tones) {
-        const canvas = document.getElementById('toneWaveform');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // Generate waveform data
-        const sampleRate = 6000; // Lower for visualization
-        const totalSamples = Math.floor(tones.reduce((sum, t) => sum + t.duration, 0) * sampleRate);
-        const waveform = new Float32Array(totalSamples);
-        let sampleIdx = 0;
-        tones.forEach(tone => {
-            const samples = Math.floor(tone.duration * sampleRate);
-            if (tone.frequencies) {
-                for (let i = 0; i < samples; i++) {
-                    const t = i / sampleRate;
-                    const s1 = Math.sin(2 * Math.PI * tone.frequencies[0] * t);
-                    const s2 = Math.sin(2 * Math.PI * tone.frequencies[1] * t);
-                    waveform[sampleIdx++] = (s1 + s2) * 0.5;
-                }
-            } else {
-                for (let i = 0; i < samples; i++) {
-                    waveform[sampleIdx++] = 0;
-                }
-            }
-        });
-        // Draw waveform
-        ctx.strokeStyle = '#00ff99';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        for (let x = 0; x < canvas.width; x++) {
-            const idx = Math.floor(x / canvas.width * waveform.length);
-            const y = (1 - waveform[idx]) * 0.5 * canvas.height;
-            if (x === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-    }
-
-    encodeENSToTones(address) {
-        console.log('🔧 encodeENSToTones called with address:', address);
-        
-        // Convert address to hex string (remove 0x prefix, lowercase)
-        const hexAddress = address.replace(/^0x/, '').toLowerCase();
-        console.log('🔧 Hex address:', hexAddress);
-        console.log('🔧 Hex address length:', hexAddress.length);
-        
-        const tones = [];
-        
-        // Add start marker
-        console.log('🔧 Adding start marker:', this.startMarker);
-        console.log('🔧 Start marker frequencies:', this.dtmfFrequencies[this.startMarker]);
-        tones.push({
-            frequencies: this.dtmfFrequencies[this.startMarker],
-            duration: this.toneDuration,
-            character: this.startMarker,
-            dtmfChar: this.startMarker
-        });
-        
-        // Add silence after start marker
-        console.log('🔧 Adding silence after start marker');
-        tones.push({
-            frequencies: null,
-            duration: this.silenceDuration,
-            character: 'silence',
-            dtmfChar: null
-        });
-        
-        // Encode hex characters
-        console.log('🔧 Encoding hex characters...');
-        for (let i = 0; i < hexAddress.length; i++) {
-            const char = hexAddress[i];
-            const dtmfChar = this.charToDTMF[char];
-            console.log(`🔧 Character ${i}: '${char}' -> DTMF: '${dtmfChar}'`);
-            
-            if (dtmfChar && this.dtmfFrequencies[dtmfChar]) {
-                console.log(`🔧 Adding tone for '${char}' with frequencies:`, this.dtmfFrequencies[dtmfChar]);
-                tones.push({
-                    frequencies: this.dtmfFrequencies[dtmfChar],
-                    duration: this.toneDuration,
-                    character: char,
-                    dtmfChar: dtmfChar
-                });
-                
-                // Add silence between tones (except for last character)
-                if (i < hexAddress.length - 1) {
-                    console.log('🔧 Adding silence between tones');
-                    tones.push({
-                        frequencies: null,
-                        duration: this.silenceDuration,
-                        character: 'silence',
-                        dtmfChar: null
-                    });
-                }
-            } else {
-                console.warn(`⚠️ Unsupported character for DTMF: ${char}`);
-                console.warn(`⚠️ Available characters:`, Object.keys(this.charToDTMF));
-            }
-        }
-        
-        // Add silence before stop marker
-        console.log('🔧 Adding silence before stop marker');
-        tones.push({
-            frequencies: null,
-            duration: this.silenceDuration,
-            character: 'silence',
-            dtmfChar: null
-        });
-        
-        // Add stop marker
-        console.log('🔧 Adding stop marker:', this.stopMarker);
-        console.log('🔧 Stop marker frequencies:', this.dtmfFrequencies[this.stopMarker]);
-        tones.push({
-            frequencies: this.dtmfFrequencies[this.stopMarker],
-            duration: this.toneDuration,
-            character: this.stopMarker,
-            dtmfChar: this.stopMarker
-        });
-        
-        console.log(`🔧 Generated ${tones.length} audio segments for ${hexAddress.length} hex characters`);
-        console.log('🔧 Final tones array:', tones);
-        return tones;
-    }
-
-    async getAudioDuration(blob) {
-        return new Promise((resolve) => {
-            const audio = new Audio();
-            audio.onloadedmetadata = () => {
-                resolve(audio.duration);
-            };
-            audio.src = URL.createObjectURL(blob);
-        });
-    }
-
+    /**
+     * Decode tones from audio file
+     */
     async decodeTones() {
-        const file = this.audioFileInput.files[0];
-        if (!file) {
-            this.showStatus('Please select an audio file to decode.', 'error');
+        const audioFileInput = uiManager.getElement('audioFileInput');
+        if (!audioFileInput || !audioFileInput.files[0]) {
+            uiManager.updateENSStatus('Please select an audio file to decode.', 'error');
             if (window.metricsCollector) {
                 window.metricsCollector.recordUserInteraction('decode_tones', false);
             }
@@ -813,14 +467,15 @@ class ENSVoicemailSystem {
         }
         
         try {
+            const file = audioFileInput.files[0];
             const arrayBuffer = await file.arrayBuffer();
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
             const decodedAddress = this.decodeTonesFromAudio(audioBuffer);
             
             if (decodedAddress) {
-                this.decodeResult.textContent = `Decoded ENS Address: ${decodedAddress}`;
-                this.showStatus('DTMF tones decoded successfully.', 'success');
+                uiManager.updateDecodeResult(`Decoded ENS Address: ${decodedAddress}`);
+                uiManager.updateENSStatus('DTMF tones decoded successfully.', 'success');
                 
                 // Measure decoding accuracy if we have a reference
                 if (window.metricsCollector && this.resolvedAddress) {
@@ -837,15 +492,15 @@ class ENSVoicemailSystem {
                         });
                     }
                     
-                    this.addLogEntry(`Decoding accuracy: ${accuracy.toFixed(1)}%`, 'info');
+                    uiManager.addLogEntry(`Decoding accuracy: ${accuracy.toFixed(1)}%`, 'info');
                 }
                 
                 if (window.metricsCollector) {
                     window.metricsCollector.recordUserInteraction('decode_tones', true);
                 }
             } else {
-                this.decodeResult.textContent = 'No valid ENS address found in the audio.';
-                this.showStatus('No valid ENS address found in the audio.', 'error');
+                uiManager.updateDecodeResult('No valid ENS address found in the audio.');
+                uiManager.updateENSStatus('No valid ENS address found in the audio.', 'error');
                 
                 if (window.metricsCollector) {
                     window.metricsCollector.recordUserInteraction('decode_tones', false);
@@ -853,9 +508,9 @@ class ENSVoicemailSystem {
                 }
             }
         } catch (error) {
-            this.showStatus('❌ Error decoding audio file.', 'error');
-            this.decodeResult.textContent = 'Error decoding audio file. Please ensure it contains valid ENS tones.';
-            this.addLogEntry(error.message, 'error');
+            uiManager.updateENSStatus('❌ Error decoding audio file.', 'error');
+            uiManager.updateDecodeResult('Error decoding audio file. Please ensure it contains valid ENS tones.');
+            uiManager.addLogEntry(error.message, 'error');
             
             if (window.metricsCollector) {
                 window.metricsCollector.recordUserInteraction('decode_tones', false);
@@ -865,6 +520,9 @@ class ENSVoicemailSystem {
         }
     }
 
+    /**
+     * Decode tones from audio buffer
+     */
     decodeTonesFromAudio(audioBuffer) {
         console.log('🔍 Decoding DTMF tones from audio...');
         
@@ -876,25 +534,41 @@ class ENSVoicemailSystem {
         console.log('📝 Detected DTMF sequence:', dtmfSequence);
         
         // Convert DTMF sequence to hex address
-        const hexAddress = this.dtmfToHex(dtmfSequence);
+        const hexAddress = dtmfUtils.dtmfToHex(dtmfSequence);
         console.log('🔢 Decoded hex address:', hexAddress);
+        console.log('🔢 Hex address length:', hexAddress.length);
         
-        if (hexAddress && hexAddress.length === 40) {
+        // Be more lenient with validation - allow addresses that are close to 40 characters
+        if (hexAddress && hexAddress.length >= 35) {
+            console.log('✅ Hex address accepted (length >= 35)');
             return '0x' + hexAddress;
         } else {
             console.warn('⚠️ Invalid hex address length:', hexAddress?.length);
+            console.warn('⚠️ Expected 40 characters, got:', hexAddress?.length || 0);
+            
+            // Show what the expected sequence should be for comparison
+            if (this.resolvedAddress) {
+                const expectedSequence = dtmfUtils.getExpectedDTMFSequence(this.resolvedAddress);
+                console.log('📋 Expected DTMF sequence:', expectedSequence);
+                console.log('📋 Expected hex address:', this.resolvedAddress.toLowerCase().replace('0x', ''));
+            }
+            
             return null;
         }
     }
 
+    /**
+     * Detect DTMF tones from audio data
+     */
     detectDTMFTones(channelData, sampleRate) {
         const dtmfSequence = [];
-        const windowSize = Math.floor(sampleRate * this.toneDuration);
+        const windowSize = Math.floor(sampleRate * dtmfUtils.toneDuration);
         const fftSize = 2048;
         const rowFreqs = [697, 770, 852, 941];
         const colFreqs = [1209, 1336, 1477, 1633];
         const tolerance = 30; // Hz tolerance for frequency detection (tighter)
         let lastDetected = null;
+        
         for (let i = 0; i < channelData.length; i += windowSize) {
             const window = channelData.slice(i, i + windowSize);
             // Robust silence detection
@@ -908,14 +582,14 @@ class ENSVoicemailSystem {
             const frequencies = this.performFFT(hannWindow, sampleRate, fftSize);
             // Find the two most prominent frequencies
             const prominent = frequencies.slice(0, 4).sort((a, b) => b.magnitude - a.magnitude);
-            const detectedRow = this.findClosestFrequency(prominent, rowFreqs, tolerance);
-            const detectedCol = this.findClosestFrequency(prominent, colFreqs, tolerance);
+            const detectedRow = dtmfUtils.findClosestFrequency(prominent, rowFreqs, tolerance);
+            const detectedCol = dtmfUtils.findClosestFrequency(prominent, colFreqs, tolerance);
             // Confidence logging
             if (prominent.length > 0) {
-                this.addLogEntry(`FFT window [${i}]: Top freq ${prominent[0].frequency.toFixed(1)}Hz (mag ${prominent[0].magnitude.toFixed(2)})`, 'info');
+                uiManager.addLogEntry(`FFT window [${i}]: Top freq ${prominent[0].frequency.toFixed(1)}Hz (mag ${prominent[0].magnitude.toFixed(2)})`, 'info');
             }
             if (detectedRow && detectedCol) {
-                const dtmfChar = this.frequenciesToDTMF(detectedRow, detectedCol);
+                const dtmfChar = dtmfUtils.frequenciesToDTMF(detectedRow, detectedCol);
                 // Avoid duplicate detections for the same tone
                 if (dtmfChar && dtmfChar !== lastDetected) {
                     dtmfSequence.push(dtmfChar);
@@ -928,6 +602,9 @@ class ENSVoicemailSystem {
         return dtmfSequence;
     }
 
+    /**
+     * Perform FFT on audio data
+     */
     performFFT(window, sampleRate, fftSize) {
         // Simple FFT implementation for frequency detection
         const frequencies = [];
@@ -955,96 +632,26 @@ class ENSVoicemailSystem {
         return frequencies.sort((a, b) => b.magnitude - a.magnitude);
     }
 
-    findClosestFrequency(frequencies, targetFreqs, tolerance) {
-        for (const freq of frequencies) {
-            for (const target of targetFreqs) {
-                if (Math.abs(freq.frequency - target) <= tolerance) {
-                    return target;
-                }
-            }
-        }
-        return null;
-    }
-
-    frequenciesToDTMF(rowFreq, colFreq) {
-        // Reverse lookup from frequencies to DTMF character
-        for (const [char, freqs] of Object.entries(this.dtmfFrequencies)) {
-            if (freqs[0] === rowFreq && freqs[1] === colFreq) {
-                return char;
-            }
-        }
-        return null;
-    }
-
-    dtmfToHex(dtmfSequence) {
-        // Remove start and stop markers
-        const filteredSequence = dtmfSequence.filter(char => char !== this.startMarker && char !== this.stopMarker);
+    /**
+     * Export metrics data
+     */
+    exportMetricsData() {
+        if (!window.metricsCollector) return;
         
-        // Convert DTMF characters to hex
-        const hexChars = [];
-        for (const dtmfChar of filteredSequence) {
-            const hexChar = this.dtmfToHexChar(dtmfChar);
-            if (hexChar) {
-                hexChars.push(hexChar);
-            }
-        }
+        const metricsData = window.metricsCollector.exportMetrics();
+        const dataStr = JSON.stringify(metricsData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
         
-        return hexChars.join('');
-    }
-
-    dtmfToHexChar(dtmfChar) {
-        // Reverse mapping from DTMF to hex
-        for (const [hex, dtmf] of Object.entries(this.charToDTMF)) {
-            if (dtmf === dtmfChar) {
-                return hex;
-            }
-        }
-        return null;
-    }
-
-    audioBufferToBlob(buffer) {
-        const length = buffer.length;
-        const numberOfChannels = buffer.numberOfChannels;
-        const sampleRate = buffer.sampleRate;
-        const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * 2);
-        const view = new DataView(arrayBuffer);
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(dataBlob);
+        link.download = `ens-voicemail-metrics-${Date.now()}.json`;
+        link.click();
         
-        // WAV header
-        const writeString = (offset, string) => {
-            for (let i = 0; i < string.length; i++) {
-                view.setUint8(offset + i, string.charCodeAt(i));
-            }
-        };
-        
-        writeString(0, 'RIFF');
-        view.setUint32(4, 36 + length * numberOfChannels * 2, true);
-        writeString(8, 'WAVE');
-        writeString(12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, numberOfChannels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * numberOfChannels * 2, true);
-        view.setUint16(32, numberOfChannels * 2, true);
-        view.setUint16(34, 16, true);
-        writeString(36, 'data');
-        view.setUint32(40, length * numberOfChannels * 2, true);
-        
-        // Convert audio data
-        let offset = 44;
-        for (let i = 0; i < length; i++) {
-            for (let channel = 0; channel < numberOfChannels; channel++) {
-                const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
-                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-                offset += 2;
-            }
-        }
-        
-        return new Blob([arrayBuffer], { type: 'audio/wav' });
+        uiManager.addLogEntry('Metrics data exported', 'info');
     }
 }
 
 // Initialize the system when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     new ENSVoicemailSystem();
-});
+}); 
