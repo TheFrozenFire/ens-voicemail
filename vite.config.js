@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+  base: '/ens-voicemail/',
   server: {
     port: 8081,
     host: true,

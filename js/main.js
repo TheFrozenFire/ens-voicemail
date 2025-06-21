@@ -3,6 +3,7 @@
  * Coordinates between different modules to provide the complete application
  */
 
+import '../css/style.css';
 import { dtmfUtils } from './modules/dtmf/dtmfUtils.js';
 import { dtmfEncoder } from './modules/dtmf/dtmfEncoder.js';
 import { audioContextManager } from './modules/audio/audioContext.js';
