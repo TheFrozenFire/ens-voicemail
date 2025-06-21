@@ -1,0 +1,42 @@
+{
+  "name": "ens-voicemail",
+  "version": "1.0.0",
+  "description": "Generate audio clips with DTMF tones to transmit ENS addresses via phone - like audio QR codes for voicemail messages",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vite",
+    "dev:debug": "vite --debug",
+    "dev:inspect": "node --inspect-brk node_modules/.bin/vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:cdp": "playwright test --headed --project=chromium --debug",
+    "report": "playwright show-report",
+    "debug:chrome": "google-chrome --remote-debugging-port=9222 --disable-web-security --user-data-dir=./chrome-debug-profile",
+    "debug:playwright": "playwright test --headed --project=chromium --debug --timeout=0"
+  },
+  "keywords": [
+    "ens",
+    "ethereum",
+    "dtmf",
+    "audio",
+    "voicemail",
+    "blockchain"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "vite": "^5.0.0"
+  },
+  "directories": {
+    "test": "tests"
+  },
+  "dependencies": {
+    "playwright": "^1.53.1",
+    "playwright-core": "^1.53.1"
+  }
+}

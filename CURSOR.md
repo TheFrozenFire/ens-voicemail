@@ -3,11 +3,169 @@
 ## Project Overview
 Build an application that generates audio clips containing DTMF (Dual-Tone Multi-Frequency) tones to transmit ENS (Ethereum Name Service) addresses via phone. These audio clips can be embedded in voicemail messages, allowing recipients with compatible phones to decode the ENS address like an audio QR code.
 
+## KPI and Metrics Framework
+
+### Core Principle: Measure Everything
+**Always define success metrics first, build measurement infrastructure, and incorporate metric validation into every development cycle.**
+
+### 1. **Success Metrics Definition**
+Before implementing any feature, define 3-5 specific, measurable KPIs:
+- **Technical Metrics**: Performance, reliability, accuracy
+- **User Experience Metrics**: Usability, completion rates, error recovery
+- **Business Metrics**: Adoption, usage patterns, user satisfaction
+
+### 2. **Measurement Infrastructure Requirements**
+- **Automated Testing**: Unit tests that validate KPI thresholds
+- **Real-time Monitoring**: Logging and metric collection
+- **Performance Profiling**: Timing and resource usage tracking
+- **Error Tracking**: Comprehensive error logging and alerting
+- **User Analytics**: Usage patterns and interaction tracking
+
+### 3. **Continuous Development Integration**
+- **Pre-commit Validation**: Run metric checks before code commits
+- **CI/CD Pipeline**: Automated metric validation in build process
+- **Regression Detection**: Alerts when metrics degrade
+- **Baseline Tracking**: Document and track metric improvements over time
+
+### 4. **ENS Voicemail Specific KPIs**
+
+#### Technical Performance KPIs:
+- **DTMF Encoding Accuracy**: > 95% (measured against known fixtures)
+- **DTMF Decoding Accuracy**: > 90% (measured with real phone tests)
+- **Audio Generation Time**: < 2 seconds for standard ENS addresses
+- **Cross-browser Compatibility**: 100% (Chrome, Firefox, Safari)
+- **Test Coverage**: > 80% of critical functions
+- **Error Recovery Rate**: > 95% successful recovery from failures
+
+#### User Experience KPIs:
+- **Time to Generate Voicemail**: < 30 seconds end-to-end
+- **ENS Resolution Success Rate**: > 90% for valid addresses
+- **User Error Rate**: < 5% (successful completion without errors)
+- **Mobile Responsiveness**: 100% functional on mobile devices
+- **Accessibility Compliance**: WCAG 2.1 AA standards
+
+#### Quality Assurance KPIs:
+- **Fixture Test Pass Rate**: 100% (all generated fixtures decode correctly)
+- **Real Phone Test Success**: > 85% (actual phone/voicemail decoding)
+- **Performance Regression**: < 10% degradation in any metric
+- **Security Compliance**: Zero critical vulnerabilities
+
+### 5. **Measurement Implementation**
+
+#### Automated Metric Collection:
+```javascript
+// Example metric collection in code
+const metrics = {
+  dtmfAccuracy: measureDecodingAccuracy(fixtures),
+  generationTime: measureGenerationTime(ensAddress),
+  errorRate: calculateErrorRate(userInteractions),
+  performanceScore: calculatePerformanceScore()
+};
+```
+
+#### Metric Validation in Development:
+- **Unit Tests**: Validate individual function performance
+- **Integration Tests**: End-to-end metric validation
+- **Performance Tests**: Automated performance regression detection
+- **Fixture Tests**: Validate DTMF encoding/decoding accuracy
+
+#### Continuous Monitoring:
+- **Real-time Dashboards**: Live metric visualization
+- **Alert Systems**: Notify when metrics fall below thresholds
+- **Trend Analysis**: Track metric improvements over time
+- **Regression Detection**: Automated detection of performance degradation
+
+### 6. **Development Workflow with Metrics**
+
+#### Before Feature Development:
+1. **Define Success Metrics**: What does success look like?
+2. **Set Baselines**: Current performance levels
+3. **Establish Targets**: Specific improvement goals
+4. **Plan Measurement**: How will we measure success?
+
+#### During Development:
+1. **Implement Metrics**: Add measurement code
+2. **Validate Continuously**: Run metric checks frequently
+3. **Track Progress**: Monitor metric improvements
+4. **Adjust Targets**: Refine goals based on data
+
+#### After Feature Completion:
+1. **Measure Results**: Compare against targets
+2. **Document Learnings**: What worked, what didn't
+3. **Update Baselines**: Set new performance standards
+4. **Plan Next Iteration**: Identify next improvement opportunities
+
+### 7. **Metric Documentation Requirements**
+
+#### METRICS.md File Structure:
+```markdown
+# Project Metrics Dashboard
+
+## Current KPIs
+- [Metric Name]: [Current Value] / [Target] - [Status]
+- [Trend]: [Improving/Stable/Declining]
+
+## Measurement Methodology
+- [How each metric is calculated]
+- [Tools and frameworks used]
+- [Data collection frequency]
+
+## Historical Performance
+- [Baseline dates and values]
+- [Improvement milestones]
+- [Performance trends]
+
+## Action Items
+- [Specific actions to improve metrics]
+- [Ownership and timelines]
+- [Success criteria]
+```
+
+### 8. **Quality Gates and Validation**
+
+#### Pre-deployment Checks:
+- All KPI thresholds must be met
+- Performance regression tests must pass
+- Security scans must be clean
+- Test coverage must meet minimum requirements
+
+#### Post-deployment Validation:
+- Monitor real-world metric performance
+- Compare against pre-deployment baselines
+- Alert on any metric degradation
+- Document learnings for future improvements
+
+### 9. **Continuous Improvement Process**
+
+#### Weekly Metric Review:
+- Analyze metric trends and patterns
+- Identify improvement opportunities
+- Adjust targets based on learnings
+- Plan next week's metric focus
+
+#### Monthly KPI Assessment:
+- Review all KPIs against targets
+- Identify systemic issues or patterns
+- Update measurement methodology if needed
+- Set new quarterly targets
+
+#### Quarterly Framework Evaluation:
+- Assess metric framework effectiveness
+- Add/remove/modify KPIs as needed
+- Update measurement tools and processes
+- Plan next quarter's metric strategy
+
+---
+
 ## Development Workflow with TODO.md
 
 ### How to Use TODO.md Effectively
 
 The `TODO.md` file serves as your primary task management system during development. Here's how to use it effectively:
+
+- **Note for AI Assistants:**
+  - Do not ask for user permission before proceeding with the next logical step. Autonomously continue with the highest priority task unless the user explicitly interrupts or redirects you.
+  - **Update TODO.md automatically** as tasks are completed, bugs are found, or priorities change. Keep the TODO.md in sync with the actual project status at all times.
 
 #### 1. **Task Organization**
 - Tasks are organized by development phases with priority levels
@@ -228,4 +386,23 @@ ens-voicemail/
 - Fast generation time (< 5 seconds)
 - High audio quality and compatibility
 - Intuitive user interface
-- Cross-platform compatibility 
+- Cross-platform compatibility
+
+## Server Lock File Mechanism
+
+To prevent multiple server instances and port conflicts, the server now creates a lock file (`server.lock`) and a PID file (`server.pid`) when started. These files are automatically cleaned up when the server is stopped, even on SIGINT/SIGTERM. If you try to start the server while it's already running, you'll get a clear message and the server won't start again.
+
+### Usage
+
+- To start the server:
+  ```sh
+  ./start_server.sh
+  ```
+- To stop the server:
+  ```sh
+  ./stop_server.sh
+  ```
+
+The scripts handle lock file creation, cleanup, and graceful shutdown. If the server crashes or is killed, stale lock files are detected and cleaned up on the next start.
+
+**Note:** The lock files and logs are excluded from version control via `.gitignore`. 

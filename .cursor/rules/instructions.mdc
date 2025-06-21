@@ -1,0 +1,28 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# ENS Voicemail Project Instructions
+
+## AI Assistant Behavior
+- Always refer to CURSOR.md for project instructions and context
+- Use TODO.md for project management and task tracking
+- Do not ask for user permission before proceeding with the next logical step unless explicitly instructed
+- Update TODO.md automatically as tasks are completed, bugs are found, or priorities change
+- Keep TODO.md and METRICS.md in sync with the actual project status at all times
+- Prioritize tasks according to the guidelines in CURSOR.md and TODO.md
+- Always measure and report KPIs as defined in METRICS.md
+- Integrate metric validation into every development cycle
+
+## Development Workflow
+- Follow the KPI framework: define success metrics first, build measurement infrastructure, incorporate metric validation
+- Use the metrics dashboard in the UI to monitor live KPIs
+- Run fixture tests after any change to DTMF encoding/decoding logic
+- Update METRICS.md with the latest test results after each test run
+- All code changes should aim to improve or maintain KPI thresholds as defined in METRICS.md
+
+## Communication Style
+- When in doubt, prefer action over asking for permission, unless the user explicitly requests otherwise
+- Document all significant changes and decisions in TODO.md and/or METRICS.md
+- Provide clear, actionable feedback and next steps

@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ENS Voicemail System - DTMF Audio Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
-    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js" onerror="var s=document.createElement('script');s.src='js/ethers-5.7.2.umd.min.js';document.head.appendChild(s);"></script>
 </head>
 <body>
     <div class="container">
@@ -57,6 +60,11 @@
                         <p><strong>Encoding:</strong> <span>DTMF Dual-Tone (Standard)</span></p>
                     </div>
                 </div>
+
+                <div class="waveform-section">
+                    <h3>Tone Waveform</h3>
+                    <canvas id="toneWaveform" width="600" height="100" style="background:#222; border-radius:6px;"></canvas>
+                </div>
             </div>
 
             <div class="decode-section">
@@ -66,6 +74,86 @@
                     <button id="decodeTones" class="btn-primary">🔍 Decode DTMF</button>
                 </div>
                 <div id="decodeResult" class="result-box"></div>
+            </div>
+
+            <div class="metrics-section">
+                <h2>📊 Performance Metrics Dashboard</h2>
+                <div class="controls">
+                    <button id="refreshMetrics" class="btn-secondary">🔄 Refresh Metrics</button>
+                    <button id="exportMetrics" class="btn-secondary">📊 Export Data</button>
+                    <button id="resetMetrics" class="btn-secondary">🔄 Reset Session</button>
+                </div>
+                
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <h3>Performance KPIs</h3>
+                        <div class="metric-item">
+                            <span class="metric-label">Generation Time:</span>
+                            <span id="metricGenTime" class="metric-value">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Encoding Accuracy:</span>
+                            <span id="metricEncodingAcc" class="metric-value">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Decoding Accuracy:</span>
+                            <span id="metricDecodingAcc" class="metric-value">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <h3>User Experience KPIs</h3>
+                        <div class="metric-item">
+                            <span class="metric-label">User Interactions:</span>
+                            <span id="metricUserInteractions" class="metric-value">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Error Rate:</span>
+                            <span id="metricErrorRate" class="metric-value">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">ENS Resolution Rate:</span>
+                            <span id="metricENSResolution" class="metric-value">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <h3>Quality KPIs</h3>
+                        <div class="metric-item">
+                            <span class="metric-label">Fixture Pass Rate:</span>
+                            <span id="metricFixturePass" class="metric-value">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Cross-browser Rate:</span>
+                            <span id="metricCrossBrowser" class="metric-value">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Error Recovery Rate:</span>
+                            <span id="metricErrorRecovery" class="metric-value">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <h3>Session Info</h3>
+                        <div class="metric-item">
+                            <span class="metric-label">Session ID:</span>
+                            <span id="metricSessionId" class="metric-value">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Session Duration:</span>
+                            <span id="metricSessionDuration" class="metric-value">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Total Errors:</span>
+                            <span id="metricTotalErrors" class="metric-value">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="kpi-validation">
+                    <h3>KPI Validation Status</h3>
+                    <div id="kpiStatus" class="kpi-status"></div>
+                </div>
             </div>
 
             <div class="debug-section">
@@ -83,6 +171,7 @@
         </footer>
     </div>
 
+    <script src="js/metrics.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

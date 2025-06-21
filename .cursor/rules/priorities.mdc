@@ -1,0 +1,37 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Development Priorities
+
+## Priority Levels
+
+### High Priority
+- Core functionality implementation and bug fixes
+- Security issues and vulnerabilities
+- KPI measurement and metric validation
+- Critical user experience issues
+- Cross-browser compatibility problems
+- DTMF encoding/decoding accuracy issues
+
+### Medium Priority
+- UI/UX improvements and accessibility enhancements
+- Performance optimizations
+- Code refactoring and technical debt
+- Additional features that improve user workflow
+- Documentation updates and improvements
+
+### Low Priority
+- Nice-to-have features and advanced customizations
+- Future enhancements and experimental features
+- Cosmetic improvements
+- Additional browser support beyond core requirements
+
+## Task Management
+- Always work on the highest priority uncompleted task from TODO.md
+- Update TODO.md immediately when priorities change or new issues are discovered
+- Mark tasks as complete with `- [x]` when finished
+- Add new tasks as they are discovered during development
+- Break down large tasks that take more than 2 hours into smaller subtasks
+

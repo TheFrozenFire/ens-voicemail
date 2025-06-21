@@ -1,0 +1,39 @@
+# Server lock files
+server.lock
+server.pid
+
+# Log files
+*.log
+debug.log
+
+# Environment variables (contains API keys)
+.env
+
+# Node modules
+node_modules/
+
+# Playwright test results
+test-results/
+playwright-report/
+
+# Utility tools (not needed for production)
+tools/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp 
