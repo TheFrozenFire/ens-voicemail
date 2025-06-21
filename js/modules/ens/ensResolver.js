@@ -7,6 +7,7 @@ export class ENSResolver {
     constructor() {
         this.ethersLoaded = false;
         this.ethersLoadingPromise = null;
+        this.apiAvailable = true; // Track if API is available
     }
 
     /**
@@ -54,7 +55,7 @@ export class ENSResolver {
                 
                 // Fallback to local file
                 try {
-                    await tryLoadScript('js/ethers-5.7.2.umd.min.js');
+                    await tryLoadScript('./js/ethers-5.7.2.umd.min.js');
                     this.ethersLoaded = true;
                     resolve();
                 } catch (fallbackError) {
@@ -115,9 +116,17 @@ export class ENSResolver {
             // Use Alchemy with API key from environment variables
             const apiKey = import.meta.env.VITE_ALCHEMY_API_KEY || 'demo';
             const provider = new ethers.providers.JsonRpcProvider(`https://eth-mainnet.g.alchemy.com/v2/${apiKey}`);
-            const resolvedAddress = await provider.resolveName(address);
+            
+            // Set a timeout for the resolution
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('ENS resolution timeout')), 10000);
+            });
+            
+            const resolutionPromise = provider.resolveName(address);
+            const resolvedAddress = await Promise.race([resolutionPromise, timeoutPromise]);
             
             if (resolvedAddress) {
+                this.apiAvailable = true; // Reset API availability on success
                 return {
                     success: true,
                     address: resolvedAddress,
@@ -131,8 +140,40 @@ export class ENSResolver {
             }
         } catch (error) {
             console.error('ENS resolution error:', error);
+            
+            // Check if it's a rate limit or network error
+            if (error.message.includes('429') || error.message.includes('rate limit') || 
+                error.message.includes('timeout') || error.message.includes('network')) {
+                this.apiAvailable = false;
+                throw new Error('ENS resolution service temporarily unavailable. You can still generate DTMF tones for the ENS address.');
+            }
+            
             throw new Error('Error resolving ENS address. Please check your connection.');
         }
+    }
+
+    /**
+     * Generate a mock Ethereum address for offline functionality
+     * This allows DTMF generation to work even when ENS resolution is unavailable
+     */
+    generateMockAddress(ensAddress) {
+        // Create a deterministic "address" based on the ENS name
+        // This is just for demonstration - not a real Ethereum address
+        const hash = this.simpleHash(ensAddress);
+        return `0x${hash.padEnd(40, '0').substring(0, 40)}`;
+    }
+
+    /**
+     * Simple hash function for generating mock addresses
+     */
+    simpleHash(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return Math.abs(hash).toString(16);
     }
 
     /**
@@ -148,7 +189,8 @@ export class ENSResolver {
     getLoadingStatus() {
         return {
             loaded: this.ethersLoaded,
-            loading: !!this.ethersLoadingPromise
+            loading: !!this.ethersLoadingPromise,
+            apiAvailable: this.apiAvailable
         };
     }
 }

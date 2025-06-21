@@ -127,6 +127,23 @@ class ENSVoicemailSystem {
                 return false;
             }
         } catch (error) {
+            console.error('ENS validation error:', error);
+            
+            // Check if it's an API availability issue
+            if (error.message.includes('temporarily unavailable') || 
+                error.message.includes('rate limit') || 
+                error.message.includes('timeout') || 
+                error.message.includes('network')) {
+                
+                // Generate a mock address for offline functionality
+                const mockAddress = ensResolver.generateMockAddress(address);
+                uiManager.updateENSStatus(`⚠️ ENS resolution unavailable. Using demo mode for DTMF generation.`, 'warning');
+                uiManager.updateDisplayAddress(`${address} → ${mockAddress} (demo)`);
+                this.resolvedAddress = mockAddress;
+                
+                return true; // Allow generation to proceed
+            }
+            
             uiManager.updateENSStatus(`❌ ${error.message}`, 'error');
             uiManager.updateDisplayAddress('-');
             this.resolvedAddress = null;
