@@ -45,6 +45,10 @@ class ENSVoicemailSystem {
         this.setupLogging();
         this.loadEthers();
         this.initializeMetrics();
+        // Auto-validate default ENS on load
+        setTimeout(() => {
+            this.validateENS();
+        }, 0);
     }
 
     initializeMetrics() {
@@ -275,63 +279,22 @@ class ENSVoicemailSystem {
         this.playWithTonesBtn = document.getElementById('playWithTones');
         this.downloadRecordingBtn = document.getElementById('downloadRecording');
         this.displayAddress = document.getElementById('displayAddress');
-        this.toneDuration = document.getElementById('toneDuration');
+        this.toneDurationElement = document.getElementById('toneDuration');
         this.totalLength = document.getElementById('totalLength');
         
         // Decode elements
         this.audioFileInput = document.getElementById('audioFile');
         this.decodeTonesBtn = document.getElementById('decodeTones');
         this.decodeResult = document.getElementById('decodeResult');
+        this.audioPlayer = document.getElementById('dtmfAudioPlayer');
     }
 
     bindEvents() {
-        this.validateENSBtn.addEventListener('click', () => {
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('validate_ens_click');
-            }
-            this.validateENS();
-        });
-        
-        this.startRecordingBtn.addEventListener('click', () => {
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('start_recording_click');
-            }
-            this.startRecording();
-        });
-        
-        this.stopRecordingBtn.addEventListener('click', () => {
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('stop_recording_click');
-            }
-            this.stopRecording();
-        });
-        
-        this.playRecordingBtn.addEventListener('click', () => {
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('play_recording_click');
-            }
-            this.playRecording();
-        });
-        
         this.generateTonesBtn.addEventListener('click', () => {
             if (window.metricsCollector) {
                 window.metricsCollector.recordUserInteraction('generate_tones_click');
             }
             this.generateTones();
-        });
-        
-        this.playWithTonesBtn.addEventListener('click', () => {
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('play_with_tones_click');
-            }
-            this.playWithTones();
-        });
-        
-        this.downloadRecordingBtn.addEventListener('click', () => {
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('download_recording_click');
-            }
-            this.downloadRecording();
         });
         
         this.decodeTonesBtn.addEventListener('click', () => {
@@ -371,12 +334,16 @@ class ENSVoicemailSystem {
             });
         }
         
-        // Auto-validate ENS on input
+        // Debounced ENS auto-validation on input
+        let ensDebounceTimeout = null;
         this.ensAddressInput.addEventListener('input', () => {
             if (window.metricsCollector) {
                 window.metricsCollector.recordUserInteraction('ens_input_change');
             }
-            this.validateENS();
+            clearTimeout(ensDebounceTimeout);
+            ensDebounceTimeout = setTimeout(() => {
+                this.validateENS();
+            }, 400);
         });
     }
 
@@ -482,124 +449,86 @@ class ENSVoicemailSystem {
         this.addLogEntry(message, type);
     }
 
-    async startRecording() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            this.mediaRecorder = new MediaRecorder(stream);
-            this.audioChunks = [];
-            this.mediaRecorder.ondataavailable = (event) => {
-                this.audioChunks.push(event.data);
-            };
-            this.mediaRecorder.onstop = () => {
-                this.audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
-                this.playRecordingBtn.disabled = false;
-                this.generateTonesBtn.disabled = false;
-                this.showStatus('Recording complete. Ready to generate tones.', 'success');
-            };
-            this.mediaRecorder.start();
-            this.isRecording = true;
-            this.recordingStartTime = Date.now();
-            this.startRecordingBtn.disabled = true;
-            this.stopRecordingBtn.disabled = false;
-            this.recordingIndicator.classList.remove('hidden');
-            this.startRecordingTimer();
-            this.showStatus('Recording started...', 'info');
-        } catch (error) {
-            this.showStatus('❌ Error accessing microphone. Please ensure you have granted microphone permissions.', 'error');
-            this.addLogEntry(error.message, 'error');
-        }
-    }
-
-    stopRecording() {
-        if (this.mediaRecorder && this.isRecording) {
-            this.mediaRecorder.stop();
-            this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
-            this.isRecording = false;
-            this.startRecordingBtn.disabled = false;
-            this.stopRecordingBtn.disabled = true;
-            this.recordingIndicator.classList.add('hidden');
-            this.stopRecordingTimer();
-            this.showStatus('Recording stopped.', 'info');
-        }
-    }
-
-    startRecordingTimer() {
-        this.recordingTimer = setInterval(() => {
-            const elapsed = Date.now() - this.recordingStartTime;
-            const seconds = Math.floor(elapsed / 1000);
-            const minutes = Math.floor(seconds / 60);
-            const remainingSeconds = seconds % 60;
-            this.recordingTime.textContent = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-        }, 1000);
-    }
-
-    stopRecordingTimer() {
-        if (this.recordingTimer) {
-            clearInterval(this.recordingTimer);
-            this.recordingTimer = null;
-        }
-    }
-
-    playRecording() {
-        if (this.audioBlob) {
-            try {
-                const audioUrl = URL.createObjectURL(this.audioBlob);
-                const audio = new Audio(audioUrl);
-                audio.play();
-                this.showStatus('Playing your recording...', 'info');
-            } catch (error) {
-                this.showStatus('❌ Error playing recording.', 'error');
-                this.addLogEntry(error.message, 'error');
-            }
-        } else {
-            this.showStatus('No recording available to play.', 'error');
-        }
-    }
-
     generateTones() {
+        console.log('🔧 Starting DTMF tone generation...');
+        console.log('🔧 Resolved address:', this.resolvedAddress);
+        
         if (!this.resolvedAddress) {
-            this.showStatus('Please validate an ENS address first', 'error');
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('generate_tones', false);
-            }
+            console.error('❌ No resolved address available');
+            this.showStatus('❌ Please validate an ENS address first.', 'error');
             return;
         }
         
-        // Record the user interaction at the start
-        if (window.metricsCollector) {
-            window.metricsCollector.recordUserInteraction('generate_tones_click');
-        }
-        
         try {
-            console.log('🔧 Starting tone generation for:', this.resolvedAddress);
+            console.log('🔧 Encoding ENS to tones...');
+            const tones = this.encodeENSToTones(this.resolvedAddress);
+            console.log('🔧 Encoded tones:', tones);
+            console.log('🔧 Tones array length:', tones ? tones.length : 'null');
             
-            // Use cache if available
-            let tones = this.toneCache.get(this.resolvedAddress);
-            if (!tones) {
-                console.log('🔧 Generating new tones (not in cache)');
-                tones = this.encodeENSToTones(this.resolvedAddress);
-                // Maintain cache size
+            if (!tones || !Array.isArray(tones)) {
+                console.error('❌ encodeENSToTones returned invalid result:', tones);
+                this.showStatus('❌ Error: Could not encode ENS address to tones.', 'error');
+                return;
+            }
+            
+            // Cache the generated tones
+            if (this.toneCache.has(this.resolvedAddress)) {
+                console.log('🔧 Using cached tones');
+            } else {
+                console.log('🔧 Caching new tones');
                 if (this.toneCache.size >= this.maxCacheSize) {
                     this.toneCache.delete(this.toneCache.keys().next().value);
                 }
                 this.toneCache.set(this.resolvedAddress, tones);
-            } else {
-                console.log('🔧 Using cached tones');
             }
             
+            // Defensive: check tones is non-empty and all have valid duration
+            console.log('🔧 Validating tones...');
+            console.log('🔧 Tones is array:', Array.isArray(tones));
+            console.log('🔧 Tones length:', tones.length);
+            console.log('🔧 Sample tone:', tones[0]);
+            console.log('🔧 First 3 tones:', tones.slice(0, 3));
+            
+            // Check for invalid durations
+            const invalidTones = tones.filter(t => typeof t.duration !== 'number' || isNaN(t.duration));
+            if (invalidTones.length > 0) {
+                console.error('❌ Found tones with invalid duration:', invalidTones);
+                console.error('❌ Sample invalid tone durations:', invalidTones.slice(0, 5).map(t => ({ 
+                    character: t.character, 
+                    duration: t.duration, 
+                    durationType: typeof t.duration,
+                    isNaN: isNaN(t.duration)
+                })));
+            }
+            
+            if (!Array.isArray(tones) || tones.length === 0 || tones.some(t => typeof t.duration !== 'number' || isNaN(t.duration))) {
+                console.error('❌ Tone validation failed');
+                console.error('❌ Tones array:', tones);
+                console.error('❌ Invalid tones found:', invalidTones);
+                this.showStatus('❌ Error: Could not generate DTMF tones for this ENS address.', 'error');
+                this.toneDurationElement.textContent = '-';
+                this.totalLength.textContent = '-';
+                if (this.audioPlayer) {
+                    this.audioPlayer.style.display = 'none';
+                    this.audioPlayer.src = '';
+                }
+                if (window.metricsCollector) {
+                    window.metricsCollector.recordUserInteraction('generate_tones', false);
+                    window.metricsCollector.recordErrorRecovery(false);
+                }
+                return;
+            }
+            
+            console.log('🔧 Tone validation passed');
             const totalDuration = tones.reduce((sum, tone) => sum + tone.duration, 0);
-            this.toneDuration.textContent = `${totalDuration.toFixed(1)}s`;
+            console.log('🔧 Total duration:', totalDuration);
+            this.toneDurationElement.textContent = `${totalDuration.toFixed(1)}s`;
             this.totalLength.textContent = `${totalDuration.toFixed(1)}s`;
-            this.playWithTonesBtn.disabled = false;
-            this.downloadRecordingBtn.disabled = false;
             this.encodedTones = tones;
-            this.showStatus('DTMF tones generated. Ready to play or download.', 'success');
+            this.showStatus('DTMF tones generated. Ready to play.', 'success');
             
             console.log('🔧 Drawing waveform...');
             this.drawToneWaveform(tones);
-            
-            console.log('🔧 Playing tones...');
-            this.playTonesOnly(tones);
             
             // Measure DTMF accuracy against expected sequence
             const generatedSequence = tones.map(t => t.dtmfChar).filter(Boolean).join('');
@@ -615,6 +544,97 @@ class ENSVoicemailSystem {
             }
             
             console.log('🔧 Tone generation completed successfully');
+            
+            // Create audio player for generated tones
+            if (this.audioPlayer) {
+                try {
+                    console.log('🎵 Creating audio buffer for player...');
+                    console.log('🎵 Audio player element found:', this.audioPlayer);
+                    console.log('🎵 Audio player parent:', this.audioPlayer.parentNode);
+                    
+                    const audioCtx = this.audioContext || new (window.AudioContext || window.webkitAudioContext)();
+                    const totalDuration = tones.reduce((sum, t) => sum + t.duration, 0);
+                    const bufferLength = Math.floor(totalDuration * audioCtx.sampleRate);
+                    const buffer = audioCtx.createBuffer(1, bufferLength, audioCtx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    
+                    let currentTime = 0;
+                    tones.forEach(tone => {
+                        if (tone.frequencies && tone.frequencies.length === 2) {
+                            const startSample = Math.floor(currentTime * audioCtx.sampleRate);
+                            const samples = Math.floor(tone.duration * audioCtx.sampleRate);
+                            
+                            for (let i = 0; i < samples; i++) {
+                                const t = i / audioCtx.sampleRate;
+                                const s1 = Math.sin(2 * Math.PI * tone.frequencies[0] * t);
+                                const s2 = Math.sin(2 * Math.PI * tone.frequencies[1] * t);
+                                data[startSample + i] = (s1 + s2) * 0.3;
+                            }
+                        }
+                        currentTime += tone.duration;
+                    });
+                    
+                    console.log('🎵 Audio buffer created successfully');
+                    
+                    // Store the buffer for later playback
+                    this.generatedAudioBuffer = buffer;
+                    
+                    // Remove any existing audio widgets first
+                    const existingWidgets = this.audioPlayer.parentNode.querySelectorAll('.dtmf-audio-widget');
+                    console.log('🎵 Found existing widgets:', existingWidgets.length);
+                    existingWidgets.forEach(widget => widget.remove());
+                    
+                    // Create a container for the audio widget if it doesn't exist
+                    let audioContainer = this.audioPlayer.parentNode.querySelector('.audio-player-container');
+                    if (!audioContainer) {
+                        console.log('🎵 Creating new audio container...');
+                        audioContainer = document.createElement('div');
+                        audioContainer.className = 'audio-player-container';
+                        audioContainer.style.marginTop = '15px';
+                        audioContainer.style.padding = '10px';
+                        audioContainer.style.border = '1px solid #ddd';
+                        audioContainer.style.borderRadius = '5px';
+                        audioContainer.style.backgroundColor = '#f9f9f9';
+                        this.audioPlayer.parentNode.insertBefore(audioContainer, this.audioPlayer);
+                        console.log('🎵 Audio container created and inserted');
+                    } else {
+                        console.log('🎵 Using existing audio container');
+                    }
+                    
+                    // Create a proper HTML5 audio widget
+                    const audioWidget = document.createElement('audio');
+                    audioWidget.className = 'dtmf-audio-widget';
+                    audioWidget.controls = true;
+                    audioWidget.style.width = '100%';
+                    audioWidget.style.marginTop = '10px';
+                    
+                    // Convert audio buffer to blob and create URL
+                    const blob = this.audioBufferToBlob(buffer);
+                    const audioUrl = URL.createObjectURL(blob);
+                    audioWidget.src = audioUrl;
+                    
+                    // Clean up blob URL when audio is removed
+                    audioWidget.addEventListener('loadstart', () => {
+                        console.log('🎵 Audio widget loaded');
+                    });
+                    
+                    // Add the audio widget to the container
+                    audioContainer.appendChild(audioWidget);
+                    console.log('🎵 Audio widget added to container');
+                    
+                    // Hide the original audio element
+                    this.audioPlayer.style.display = 'none';
+                    
+                    console.log('🎵 Audio widget created successfully');
+                    
+                } catch (err) {
+                    console.error('❌ Error creating audio widget:', err);
+                    this.audioPlayer.style.display = 'none';
+                    this.addLogEntry(`Audio widget error: ${err.message}`, 'error');
+                }
+            } else {
+                console.error('❌ Audio player element not found!');
+            }
             
         } catch (error) {
             console.error('❌ Error in generateTones:', error);
@@ -687,35 +707,19 @@ class ENSVoicemailSystem {
         ctx.stroke();
     }
 
-    playTonesOnly(tones) {
-        try {
-            console.log('🎵 Initializing audio context for playback...');
-            this.initializeAudioContext();
-            
-            if (!this.audioContext) {
-                throw new Error('Audio context not available');
-            }
-            
-            console.log('🎵 Starting tone playback...');
-            this.playTones(tones);
-            this.showStatus('Playing DTMF tones...', 'info');
-            
-        } catch (error) {
-            console.error('❌ Error in playTonesOnly:', error);
-            this.showStatus('❌ Error playing tones.', 'error');
-            this.addLogEntry(error.message, 'error');
-            // Re-throw the error so generateTones can catch it
-            throw error;
-        }
-    }
-
     encodeENSToTones(address) {
+        console.log('🔧 encodeENSToTones called with address:', address);
+        
         // Convert address to hex string (remove 0x prefix, lowercase)
         const hexAddress = address.replace(/^0x/, '').toLowerCase();
+        console.log('🔧 Hex address:', hexAddress);
+        console.log('🔧 Hex address length:', hexAddress.length);
         
         const tones = [];
         
         // Add start marker
+        console.log('🔧 Adding start marker:', this.startMarker);
+        console.log('🔧 Start marker frequencies:', this.dtmfFrequencies[this.startMarker]);
         tones.push({
             frequencies: this.dtmfFrequencies[this.startMarker],
             duration: this.toneDuration,
@@ -724,6 +728,7 @@ class ENSVoicemailSystem {
         });
         
         // Add silence after start marker
+        console.log('🔧 Adding silence after start marker');
         tones.push({
             frequencies: null,
             duration: this.silenceDuration,
@@ -732,11 +737,14 @@ class ENSVoicemailSystem {
         });
         
         // Encode hex characters
+        console.log('🔧 Encoding hex characters...');
         for (let i = 0; i < hexAddress.length; i++) {
             const char = hexAddress[i];
             const dtmfChar = this.charToDTMF[char];
+            console.log(`🔧 Character ${i}: '${char}' -> DTMF: '${dtmfChar}'`);
             
             if (dtmfChar && this.dtmfFrequencies[dtmfChar]) {
+                console.log(`🔧 Adding tone for '${char}' with frequencies:`, this.dtmfFrequencies[dtmfChar]);
                 tones.push({
                     frequencies: this.dtmfFrequencies[dtmfChar],
                     duration: this.toneDuration,
@@ -746,6 +754,7 @@ class ENSVoicemailSystem {
                 
                 // Add silence between tones (except for last character)
                 if (i < hexAddress.length - 1) {
+                    console.log('🔧 Adding silence between tones');
                     tones.push({
                         frequencies: null,
                         duration: this.silenceDuration,
@@ -755,10 +764,12 @@ class ENSVoicemailSystem {
                 }
             } else {
                 console.warn(`⚠️ Unsupported character for DTMF: ${char}`);
+                console.warn(`⚠️ Available characters:`, Object.keys(this.charToDTMF));
             }
         }
         
         // Add silence before stop marker
+        console.log('🔧 Adding silence before stop marker');
         tones.push({
             frequencies: null,
             duration: this.silenceDuration,
@@ -767,6 +778,8 @@ class ENSVoicemailSystem {
         });
         
         // Add stop marker
+        console.log('🔧 Adding stop marker:', this.stopMarker);
+        console.log('🔧 Stop marker frequencies:', this.dtmfFrequencies[this.stopMarker]);
         tones.push({
             frequencies: this.dtmfFrequencies[this.stopMarker],
             duration: this.toneDuration,
@@ -775,6 +788,7 @@ class ENSVoicemailSystem {
         });
         
         console.log(`🔧 Generated ${tones.length} audio segments for ${hexAddress.length} hex characters`);
+        console.log('🔧 Final tones array:', tones);
         return tones;
     }
 
@@ -786,219 +800,6 @@ class ENSVoicemailSystem {
             };
             audio.src = URL.createObjectURL(blob);
         });
-    }
-
-    async playWithTones() {
-        if (!this.audioBlob || !this.encodedTones) {
-            this.showStatus('No recording or tones available.', 'error');
-            return;
-        }
-        try {
-            this.initializeAudioContext();
-            const audioUrl = URL.createObjectURL(this.audioBlob);
-            const audio = new Audio(audioUrl);
-            audio.onended = () => {
-                this.playTones(this.encodedTones);
-                this.showStatus('Playing DTMF tones after your recording...', 'info');
-            };
-            audio.play();
-            this.showStatus('Playing your recording...', 'info');
-        } catch (error) {
-            this.showStatus('❌ Error playing audio with tones.', 'error');
-            this.addLogEntry(error.message, 'error');
-        }
-    }
-
-    playTones(tones) {
-        let currentTime = this.audioContext.currentTime;
-        
-        // Log summary instead of individual tones
-        const toneCount = tones.filter(t => t.frequencies).length;
-        const silenceCount = tones.filter(t => !t.frequencies).length;
-        console.log(`🎵 Playing ${toneCount} DTMF tones and ${silenceCount} silence segments`);
-        
-        tones.forEach((tone, index) => {
-            if (tone.frequencies) {
-                // Create dual-tone DTMF signal
-                const oscillator1 = this.audioContext.createOscillator();
-                const oscillator2 = this.audioContext.createOscillator();
-                const gainNode1 = this.audioContext.createGain();
-                const gainNode2 = this.audioContext.createGain();
-                const masterGain = this.audioContext.createGain();
-                
-                // Connect oscillators to their gain nodes
-                oscillator1.connect(gainNode1);
-                oscillator2.connect(gainNode2);
-                
-                // Connect gain nodes to master gain
-                gainNode1.connect(masterGain);
-                gainNode2.connect(masterGain);
-                
-                // Connect master gain to output
-                masterGain.connect(this.audioContext.destination);
-                
-                // Set frequencies for DTMF dual-tone
-                oscillator1.frequency.setValueAtTime(tone.frequencies[0], currentTime);
-                oscillator2.frequency.setValueAtTime(tone.frequencies[1], currentTime);
-                
-                oscillator1.type = 'sine';
-                oscillator2.type = 'sine';
-                
-                // Set individual gains for balanced dual-tone
-                gainNode1.gain.setValueAtTime(0.18, currentTime); // slightly lower for normalization
-                gainNode2.gain.setValueAtTime(0.18, currentTime);
-                
-                // Master gain envelope to avoid clicks
-                masterGain.gain.setValueAtTime(0, currentTime);
-                masterGain.gain.linearRampToValueAtTime(0.4, currentTime + 0.01);
-                masterGain.gain.linearRampToValueAtTime(0.4, currentTime + tone.duration - 0.01);
-                masterGain.gain.linearRampToValueAtTime(0, currentTime + tone.duration);
-                
-                // Start and stop oscillators
-                oscillator1.start(currentTime);
-                oscillator2.start(currentTime);
-                oscillator1.stop(currentTime + tone.duration);
-                oscillator2.stop(currentTime + tone.duration);
-                
-                // Only log first few tones for debugging
-                if (index < 3) {
-                    console.log(`🎵 Tone ${index + 1}: ${tone.dtmfChar} (${tone.frequencies[0]}Hz + ${tone.frequencies[1]}Hz)`);
-                }
-            }
-            
-            currentTime += tone.duration;
-        });
-        
-        console.log(`🎵 DTMF playback completed`);
-    }
-
-    async downloadRecording() {
-        if (!this.audioBlob || !this.encodedTones) {
-            this.showStatus('No recording or tones to download.', 'error');
-            return;
-        }
-        try {
-            const combinedAudio = await this.combineAudioWithTones();
-            const url = URL.createObjectURL(combinedAudio);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `voicemail-${this.ensAddressInput.value.trim()}.wav`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            this.showStatus('Download started.', 'success');
-        } catch (error) {
-            this.showStatus('❌ Error creating download.', 'error');
-            this.addLogEntry(error.message, 'error');
-        }
-    }
-
-    async combineAudioWithTones() {
-        if (!this.audioBlob || !this.encodedTones) {
-            throw new Error('No audio recording or tones available');
-        }
-        try {
-            // Use cache if available
-            const cacheKey = this.resolvedAddress;
-            if (this.bufferCache.has(cacheKey)) {
-                return this.bufferCache.get(cacheKey);
-            }
-            this.initializeAudioContext();
-            const audioContext = this.audioContext;
-            
-            // Decode the recorded audio
-            const arrayBuffer = await this.audioBlob.arrayBuffer();
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            
-            // Calculate total duration
-            const recordingDuration = audioBuffer.duration;
-            const tonesDuration = this.encodedTones.reduce((sum, tone) => sum + tone.duration, 0);
-            const totalDuration = recordingDuration + tonesDuration;
-            
-            // Create output buffer
-            const outputBuffer = audioContext.createBuffer(1, Math.ceil(totalDuration * audioContext.sampleRate), audioContext.sampleRate);
-            const outputChannel = outputBuffer.getChannelData(0);
-            
-            // Copy recorded audio to output
-            const recordingChannel = audioBuffer.getChannelData(0);
-            for (let i = 0; i < recordingChannel.length; i++) {
-                outputChannel[i] = recordingChannel[i];
-            }
-            
-            // Generate and add DTMF tones after the recording
-            let toneStartTime = recordingDuration;
-            
-            this.encodedTones.forEach(tone => {
-                if (tone.frequencies) {
-                    // Generate DTMF tone
-                    const toneSamples = Math.ceil(tone.duration * audioContext.sampleRate);
-                    const startSample = Math.floor(toneStartTime * audioContext.sampleRate);
-                    
-                    for (let i = 0; i < toneSamples; i++) {
-                        const time = (i / audioContext.sampleRate);
-                        const sample1 = Math.sin(2 * Math.PI * tone.frequencies[0] * time);
-                        const sample2 = Math.sin(2 * Math.PI * tone.frequencies[1] * time);
-                        const combinedSample = (sample1 + sample2) * 0.3; // Reduce volume
-                        
-                        if (startSample + i < outputChannel.length) {
-                            outputChannel[startSample + i] += combinedSample;
-                        }
-                    }
-                }
-                toneStartTime += tone.duration;
-            });
-            
-            // Convert buffer to blob
-            const wavBlob = this.audioBufferToWav(outputBuffer);
-            this.bufferCache.set(cacheKey, wavBlob);
-            return wavBlob;
-            
-        } catch (error) {
-            console.error('Error combining audio:', error);
-            throw error;
-        }
-    }
-
-    audioBufferToWav(buffer) {
-        const length = buffer.length;
-        const numberOfChannels = buffer.numberOfChannels;
-        const sampleRate = buffer.sampleRate;
-        const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * 2);
-        const view = new DataView(arrayBuffer);
-        
-        // WAV header
-        const writeString = (offset, string) => {
-            for (let i = 0; i < string.length; i++) {
-                view.setUint8(offset + i, string.charCodeAt(i));
-            }
-        };
-        
-        writeString(0, 'RIFF');
-        view.setUint32(4, 36 + length * numberOfChannels * 2, true);
-        writeString(8, 'WAVE');
-        writeString(12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, numberOfChannels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * numberOfChannels * 2, true);
-        view.setUint16(32, numberOfChannels * 2, true);
-        view.setUint16(34, 16, true);
-        writeString(36, 'data');
-        view.setUint32(40, length * numberOfChannels * 2, true);
-        
-        // Convert audio data
-        let offset = 44;
-        for (let i = 0; i < length; i++) {
-            for (let channel = 0; channel < numberOfChannels; channel++) {
-                const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
-                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-                offset += 2;
-            }
-        }
-        
-        return new Blob([arrayBuffer], { type: 'audio/wav' });
     }
 
     async decodeTones() {
@@ -1199,6 +1000,47 @@ class ENSVoicemailSystem {
             }
         }
         return null;
+    }
+
+    audioBufferToBlob(buffer) {
+        const length = buffer.length;
+        const numberOfChannels = buffer.numberOfChannels;
+        const sampleRate = buffer.sampleRate;
+        const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * 2);
+        const view = new DataView(arrayBuffer);
+        
+        // WAV header
+        const writeString = (offset, string) => {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        };
+        
+        writeString(0, 'RIFF');
+        view.setUint32(4, 36 + length * numberOfChannels * 2, true);
+        writeString(8, 'WAVE');
+        writeString(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, numberOfChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numberOfChannels * 2, true);
+        view.setUint16(32, numberOfChannels * 2, true);
+        view.setUint16(34, 16, true);
+        writeString(36, 'data');
+        view.setUint32(40, length * numberOfChannels * 2, true);
+        
+        // Convert audio data
+        let offset = 44;
+        for (let i = 0; i < length; i++) {
+            for (let channel = 0; channel < numberOfChannels; channel++) {
+                const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                offset += 2;
+            }
+        }
+        
+        return new Blob([arrayBuffer], { type: 'audio/wav' });
     }
 }
 

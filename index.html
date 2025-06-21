@@ -22,33 +22,15 @@
                 <label for="ensAddress">Your ENS Address:</label>
                 <div class="input-group">
                     <input type="text" id="ensAddress" placeholder="e.g., vitalik.eth" value="vitalik.eth">
-                    <button id="validateENS" class="btn-secondary">🔍 Validate ENS</button>
+                    <button id="validateENS" class="btn-secondary" style="display:none">🔍 Validate ENS</button>
                 </div>
                 <div id="ensStatus" class="status"></div>
-            </div>
-
-            <div class="recording-section">
-                <h2>🎤 Record Your Voicemail</h2>
-                <div class="controls">
-                    <button id="startRecording" class="btn-primary">🎤 Start Recording</button>
-                    <button id="stopRecording" class="btn-danger" disabled>⏹️ Stop Recording</button>
-                    <button id="playRecording" class="btn-secondary" disabled>▶️ Play Recording</button>
-                </div>
-                
-                <div class="recording-status">
-                    <div id="recordingIndicator" class="hidden">
-                        <span class="pulse">🔴</span> Recording...
-                    </div>
-                    <div id="recordingTime">00:00</div>
-                </div>
             </div>
 
             <div class="preview-section">
                 <h2>🎵 Generate DTMF Tones</h2>
                 <div class="controls">
                     <button id="generateTones" class="btn-primary">🎵 Generate & Play Tones</button>
-                    <button id="playWithTones" class="btn-secondary" disabled>🎧 Play with Recording</button>
-                    <button id="downloadRecording" class="btn-secondary" disabled>💾 Download Combined Audio</button>
                 </div>
                 
                 <div class="tone-info">
@@ -64,6 +46,9 @@
                 <div class="waveform-section">
                     <h3>Tone Waveform</h3>
                     <canvas id="toneWaveform" width="600" height="100" style="background:#222; border-radius:6px;"></canvas>
+                </div>
+                <div class="audio-player-section">
+                    <audio id="dtmfAudioPlayer" controls style="width:100%;margin-top:10px;display:none"></audio>
                 </div>
             </div>
 
@@ -171,7 +156,7 @@
         </footer>
     </div>
 
-    <script src="js/metrics.js"></script>
-    <script src="js/main.js"></script>
+    <script type="module" src="js/metrics.js"></script>
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>
