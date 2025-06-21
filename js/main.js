@@ -18,7 +18,6 @@ class ENSVoicemailSystem {
         
         this.initializeSystem();
         this.bindEvents();
-        this.initializeMetrics();
         
         // Auto-validate default ENS on load
         setTimeout(() => {
@@ -30,24 +29,27 @@ class ENSVoicemailSystem {
      * Initialize the system
      */
     initializeSystem() {
+        console.log('🔧 Initializing ENS Voicemail System...');
+        
+        // Initialize UI manager
+        uiManager.initializeElements();
+        
         // Initialize audio context
         audioContextManager.initializeAudioContext();
         
-        // Setup logging
-        uiManager.addLogEntry('ENS Voicemail System initialized', 'info');
+        console.log('✅ System initialized successfully');
     }
 
     /**
-     * Bind event handlers
+     * Bind event listeners
      */
     bindEvents() {
+        console.log('🔧 Binding event listeners...');
+        
         // Generate tones button
         const generateTonesBtn = uiManager.getElement('generateTonesBtn');
         if (generateTonesBtn) {
             generateTonesBtn.addEventListener('click', () => {
-                if (window.metricsCollector) {
-                    window.metricsCollector.recordUserInteraction('generate_tones_click');
-                }
                 this.generateTones();
             });
         }
@@ -56,40 +58,7 @@ class ENSVoicemailSystem {
         const decodeTonesBtn = uiManager.getElement('decodeTonesBtn');
         if (decodeTonesBtn) {
             decodeTonesBtn.addEventListener('click', () => {
-                if (window.metricsCollector) {
-                    window.metricsCollector.recordUserInteraction('decode_tones_click');
-                }
                 this.decodeTones();
-            });
-        }
-
-        // Metrics dashboard events
-        const refreshMetricsBtn = document.getElementById('refreshMetrics');
-        const exportMetricsBtn = document.getElementById('exportMetrics');
-        const resetMetricsBtn = document.getElementById('resetMetrics');
-        
-        if (refreshMetricsBtn) {
-            refreshMetricsBtn.addEventListener('click', () => {
-                this.updateMetricsDisplay();
-                this.updateKPIValidation();
-                uiManager.addLogEntry('Metrics refreshed', 'info');
-            });
-        }
-        
-        if (exportMetricsBtn) {
-            exportMetricsBtn.addEventListener('click', () => {
-                this.exportMetricsData();
-            });
-        }
-        
-        if (resetMetricsBtn) {
-            resetMetricsBtn.addEventListener('click', () => {
-                if (window.metricsCollector) {
-                    window.metricsCollector.reset();
-                    this.updateMetricsDisplay();
-                    this.updateKPIValidation();
-                    uiManager.addLogEntry('Metrics session reset', 'info');
-                }
             });
         }
 
@@ -114,110 +83,11 @@ class ENSVoicemailSystem {
         if (ensAddressInput) {
             let ensDebounceTimeout = null;
             ensAddressInput.addEventListener('input', () => {
-                if (window.metricsCollector) {
-                    window.metricsCollector.recordUserInteraction('ens_input_change');
-                }
                 clearTimeout(ensDebounceTimeout);
                 ensDebounceTimeout = setTimeout(() => {
                     this.validateENS();
                 }, 400);
             });
-        }
-    }
-
-    /**
-     * Initialize metrics
-     */
-    initializeMetrics() {
-        this.updateMetricsDisplay();
-        this.updateKPIValidation();
-        
-        // Set up periodic metrics refresh
-        setInterval(() => {
-            this.updateMetricsDisplay();
-            this.updateKPIValidation();
-        }, 5000);
-    }
-
-    /**
-     * Update metrics display
-     */
-    updateMetricsDisplay() {
-        if (!window.metricsCollector) return;
-        
-        const metrics = window.metricsCollector.getMetrics();
-        
-        // Update metric values in UI
-        const metricElements = {
-            'metricGenTime': metrics.avgGenerationTime,
-            'metricEncodingAcc': metrics.encodingAccuracy,
-            'metricDecodingAcc': metrics.decodingAccuracy,
-            'metricUserInteractions': metrics.userInteractions,
-            'metricErrorRate': metrics.errorRate,
-            'metricENSResolution': metrics.ensResolutionRate,
-            'metricFixturePass': metrics.fixturePassRate,
-            'metricCrossBrowser': metrics.crossBrowserRate,
-            'metricErrorRecovery': metrics.errorRecoveryRate,
-            'metricSessionId': metrics.sessionId.substring(0, 20) + '...',
-            'metricSessionDuration': this.formatDuration(metrics.sessionDuration),
-            'metricTotalErrors': metrics.totalErrors
-        };
-        
-        Object.entries(metricElements).forEach(([id, value]) => {
-            const element = document.getElementById(id);
-            if (element) {
-                element.textContent = value;
-            }
-        });
-    }
-
-    /**
-     * Update KPI validation
-     */
-    updateKPIValidation() {
-        if (!window.metricsCollector) return;
-        
-        const validation = window.metricsCollector.validateKPIs();
-        const kpiStatus = document.getElementById('kpiStatus');
-        if (!kpiStatus) return;
-        
-        kpiStatus.innerHTML = '';
-        
-        if (validation.valid) {
-            const successItem = document.createElement('div');
-            successItem.className = 'kpi-item success';
-            successItem.innerHTML = `
-                <span class="kpi-icon">✅</span>
-                <span class="kpi-message">All KPIs are within target thresholds</span>
-            `;
-            kpiStatus.appendChild(successItem);
-        } else {
-            validation.violations.forEach(violation => {
-                const errorItem = document.createElement('div');
-                errorItem.className = 'kpi-item error';
-                errorItem.innerHTML = `
-                    <span class="kpi-icon">❌</span>
-                    <span class="kpi-message">${violation}</span>
-                `;
-                kpiStatus.appendChild(errorItem);
-            });
-        }
-    }
-
-    /**
-     * Format duration in human-readable format
-     */
-    formatDuration(ms) {
-        const seconds = Math.floor(ms / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        
-        if (hours > 0) {
-            return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
-        } else if (minutes > 0) {
-            return `${minutes}m ${seconds % 60}s`;
-        } else {
-            return `${seconds}s`;
         }
     }
 
@@ -228,15 +98,12 @@ class ENSVoicemailSystem {
         const ensAddressInput = uiManager.getElement('ensAddressInput');
         if (!ensAddressInput) return false;
         
-        const address = ensAddressInput.value.trim();
+        const address = ensAddressInput.value.trim().toLowerCase();
         
         // Validate format
         const formatValidation = ensResolver.validateENSFormat(address);
         if (!formatValidation.valid) {
             uiManager.updateENSStatus(formatValidation.error, 'error');
-            if (window.metricsCollector) {
-                window.metricsCollector.recordUserInteraction('validate_ens', false);
-            }
             return false;
         }
         
@@ -250,21 +117,11 @@ class ENSVoicemailSystem {
                 uiManager.updateDisplayAddress(`${address} → ${result.address}`);
                 this.resolvedAddress = result.address;
                 
-                if (window.metricsCollector) {
-                    window.metricsCollector.recordENSResolution(true);
-                    window.metricsCollector.recordUserInteraction('validate_ens', true);
-                }
-                
                 return true;
             } else {
                 uiManager.updateENSStatus(`❌ ${result.error}`, 'error');
                 uiManager.updateDisplayAddress('-');
                 this.resolvedAddress = null;
-                
-                if (window.metricsCollector) {
-                    window.metricsCollector.recordENSResolution(false);
-                    window.metricsCollector.recordUserInteraction('validate_ens', false);
-                }
                 
                 return false;
             }
@@ -272,12 +129,6 @@ class ENSVoicemailSystem {
             uiManager.updateENSStatus(`❌ ${error.message}`, 'error');
             uiManager.updateDisplayAddress('-');
             this.resolvedAddress = null;
-            
-            if (window.metricsCollector) {
-                window.metricsCollector.recordENSResolution(false);
-                window.metricsCollector.recordUserInteraction('validate_ens', false);
-                window.metricsCollector.recordErrorRecovery(false);
-            }
             
             return false;
         }
@@ -335,10 +186,6 @@ class ENSVoicemailSystem {
                     audioPlayer.src = '';
                 }
                 
-                if (window.metricsCollector) {
-                    window.metricsCollector.recordUserInteraction('generate_tones', false);
-                    window.metricsCollector.recordErrorRecovery(false);
-                }
                 return;
             }
             
@@ -630,24 +477,6 @@ class ENSVoicemailSystem {
         }
         
         return frequencies.sort((a, b) => b.magnitude - a.magnitude);
-    }
-
-    /**
-     * Export metrics data
-     */
-    exportMetricsData() {
-        if (!window.metricsCollector) return;
-        
-        const metricsData = window.metricsCollector.exportMetrics();
-        const dataStr = JSON.stringify(metricsData, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(dataBlob);
-        link.download = `ens-voicemail-metrics-${Date.now()}.json`;
-        link.click();
-        
-        uiManager.addLogEntry('Metrics data exported', 'info');
     }
 }
 

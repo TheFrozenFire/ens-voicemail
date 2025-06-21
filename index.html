@@ -61,86 +61,6 @@
                 <div id="decodeResult" class="result-box"></div>
             </div>
 
-            <div class="metrics-section">
-                <h2>📊 Performance Metrics Dashboard</h2>
-                <div class="controls">
-                    <button id="refreshMetrics" class="btn-secondary">🔄 Refresh Metrics</button>
-                    <button id="exportMetrics" class="btn-secondary">📊 Export Data</button>
-                    <button id="resetMetrics" class="btn-secondary">🔄 Reset Session</button>
-                </div>
-                
-                <div class="metrics-grid">
-                    <div class="metric-card">
-                        <h3>Performance KPIs</h3>
-                        <div class="metric-item">
-                            <span class="metric-label">Generation Time:</span>
-                            <span id="metricGenTime" class="metric-value">-</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">Encoding Accuracy:</span>
-                            <span id="metricEncodingAcc" class="metric-value">-</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">Decoding Accuracy:</span>
-                            <span id="metricDecodingAcc" class="metric-value">-</span>
-                        </div>
-                    </div>
-                    
-                    <div class="metric-card">
-                        <h3>User Experience KPIs</h3>
-                        <div class="metric-item">
-                            <span class="metric-label">User Interactions:</span>
-                            <span id="metricUserInteractions" class="metric-value">-</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">Error Rate:</span>
-                            <span id="metricErrorRate" class="metric-value">-</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">ENS Resolution Rate:</span>
-                            <span id="metricENSResolution" class="metric-value">-</span>
-                        </div>
-                    </div>
-                    
-                    <div class="metric-card">
-                        <h3>Quality KPIs</h3>
-                        <div class="metric-item">
-                            <span class="metric-label">Fixture Pass Rate:</span>
-                            <span id="metricFixturePass" class="metric-value">-</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">Cross-browser Rate:</span>
-                            <span id="metricCrossBrowser" class="metric-value">-</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">Error Recovery Rate:</span>
-                            <span id="metricErrorRecovery" class="metric-value">-</span>
-                        </div>
-                    </div>
-                    
-                    <div class="metric-card">
-                        <h3>Session Info</h3>
-                        <div class="metric-item">
-                            <span class="metric-label">Session ID:</span>
-                            <span id="metricSessionId" class="metric-value">-</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">Session Duration:</span>
-                            <span id="metricSessionDuration" class="metric-value">-</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="metric-label">Total Errors:</span>
-                            <span id="metricTotalErrors" class="metric-value">-</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="kpi-validation">
-                    <h3>KPI Validation Status</h3>
-                    <div id="kpiStatus" class="kpi-status"></div>
-                </div>
-            </div>
-
             <div class="debug-section">
                 <h2>📋 Debug Logs</h2>
                 <div class="controls">
@@ -156,7 +76,6 @@
         </footer>
     </div>
 
-    <script type="module" src="js/metrics.js"></script>
     <script type="module" src="js/main.js"></script>
 </body>
 </html>

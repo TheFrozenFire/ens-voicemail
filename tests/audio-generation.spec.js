@@ -1,74 +1,97 @@
 const { test, expect } = require('@playwright/test');
 
 test.describe('Audio Generation Tests', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-  });
-
   test('should generate tones after ENS resolution', async ({ page }) => {
+    await page.goto('/');
+    
     const ensInput = page.locator('#ensAddress');
     
-    // Fill ENS and validate
+    // Fill ENS and trigger automatic validation
     await ensInput.fill('vitalik.eth');
-    await page.click('#validateENS');
+    await ensInput.blur(); // Trigger validation by losing focus
     
     // Wait for potential resolution
     await page.waitForTimeout(3000);
     
-    // Try to generate tones
+    // Generate tones
     await page.click('#generateTones');
     
-    // Check if tones were generated or error shown
-    const status = page.locator('#ensStatus');
-    const statusText = await status.textContent();
+    // Wait for generation to complete
+    await page.waitForTimeout(2000);
     
-    // Should show either success or appropriate error
-    expect(statusText).toMatch(/DTMF tones generated|Please validate|Error generating/);
+    // Check that tone information is displayed
+    await expect(page.locator('#displayAddress')).not.toHaveText('-');
+    await expect(page.locator('#toneDuration')).not.toHaveText('-');
+    await expect(page.locator('#totalLength')).not.toHaveText('-');
   });
 
   test('should show waveform after tone generation', async ({ page }) => {
+    await page.goto('/');
+    
     const ensInput = page.locator('#ensAddress');
     
-    // Fill ENS and validate
+    // Fill ENS and trigger automatic validation
     await ensInput.fill('vitalik.eth');
-    await page.click('#validateENS');
+    await ensInput.blur(); // Trigger validation by losing focus
     await page.waitForTimeout(3000);
     
     // Generate tones
     await page.click('#generateTones');
     await page.waitForTimeout(2000);
     
-    // Check if waveform canvas is present and visible
+    // Check waveform canvas is present and has content
     const waveform = page.locator('#toneWaveform');
     await expect(waveform).toBeVisible();
+    
+    // Check that audio player is shown
+    const audioPlayer = page.locator('#dtmfAudioPlayer');
+    await expect(audioPlayer).toBeVisible();
   });
 
   test('should display tone information', async ({ page }) => {
+    await page.goto('/');
+    
     const ensInput = page.locator('#ensAddress');
     
-    // Fill ENS and validate
+    // Fill ENS and trigger automatic validation
     await ensInput.fill('vitalik.eth');
-    await page.click('#validateENS');
+    await ensInput.blur(); // Trigger validation by losing focus
     await page.waitForTimeout(5000); // Wait longer for potential resolution
     
     // Try to generate tones
     await page.click('#generateTones');
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(2000);
     
-    // Check tone information is displayed (if resolution was successful)
+    // Check tone information is displayed
+    const displayAddress = page.locator('#displayAddress');
     const toneDuration = page.locator('#toneDuration');
     const totalLength = page.locator('#totalLength');
-    const status = page.locator('#ensStatus');
     
-    const statusText = await status.textContent();
-    if (statusText.includes('DTMF tones generated')) {
-      // If tones were generated, check duration information
-      await expect(toneDuration).not.toHaveText('-');
-      await expect(totalLength).not.toHaveText('-');
-    } else {
-      // If resolution failed, duration should remain as '-'
-      await expect(toneDuration).toHaveText('-');
-      await expect(totalLength).toHaveText('-');
-    }
+    // At least one of these should show actual data
+    const addressText = await displayAddress.textContent();
+    const durationText = await toneDuration.textContent();
+    const lengthText = await totalLength.textContent();
+    
+    // Should show some information (not all dashes)
+    expect([addressText, durationText, lengthText].some(text => text !== '-')).toBeTruthy();
+  });
+
+  test('should handle invalid ENS gracefully', async ({ page }) => {
+    await page.goto('/');
+    
+    const ensInput = page.locator('#ensAddress');
+    
+    // Fill with invalid ENS
+    await ensInput.fill('invalid-address');
+    await ensInput.blur();
+    await page.waitForTimeout(1000);
+    
+    // Try to generate tones
+    await page.click('#generateTones');
+    await page.waitForTimeout(1000);
+    
+    // Should show error or not generate tones
+    const status = page.locator('#ensStatus');
+    await expect(status).toContainText('Invalid ENS address format');
   });
 }); 

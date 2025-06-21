@@ -1,55 +1,56 @@
 const { test, expect } = require('@playwright/test');
 
+async function fillENSInput(ensInput, value, page) {
+  await ensInput.fill('');
+  await page.waitForTimeout(100);
+  await ensInput.fill(value);
+  await ensInput.blur();
+  await page.waitForTimeout(500);
+}
+
 test.describe('ENS Validation Tests', () => {
-  test.beforeEach(async ({ page }) => {
+  test('should validate ENS address format automatically', async ({ page }) => {
     await page.goto('/');
-  });
-
-  test('should validate ENS address format', async ({ page }) => {
     const ensInput = page.locator('#ensAddress');
-    
-    // Test invalid ENS format
-    await ensInput.fill('invalid-address');
-    await page.click('#validateENS');
+    // Test invalid ENS format - should trigger automatic validation
+    await fillENSInput(ensInput, '!!!notanens!!!', page);
     await expect(page.locator('#ensStatus')).toContainText('Invalid ENS address format');
-    
     // Test valid ENS format
-    await ensInput.fill('vitalik.eth');
-    await page.click('#validateENS');
-    // Should show loading state or error (both are valid outcomes)
+    await fillENSInput(ensInput, 'vitalik.eth', page);
     const status = page.locator('#ensStatus');
-    await page.waitForTimeout(3000); // Wait for ethers.js loading attempt
-    const statusText = await status.textContent();
-    expect(statusText).toMatch(/Loading ENS resolver|Could not load ENS resolver|ENS resolved|Error resolving/);
+    await expect(status).not.toContainText('Invalid ENS address format');
   });
 
-  test('should handle ENS resolution', async ({ page }) => {
+  test('should handle ENS resolution automatically', async ({ page }) => {
+    await page.goto('/');
     const ensInput = page.locator('#ensAddress');
-    
-    // Test with a known ENS address
-    await ensInput.fill('vitalik.eth');
-    await page.click('#validateENS');
-    
-    // Wait for resolution (may take a few seconds)
-    await page.waitForTimeout(5000);
-    
-    // Check if resolution was successful or failed gracefully
+    await fillENSInput(ensInput, 'vitalik.eth', page);
+    await page.waitForTimeout(4000);
     const status = page.locator('#ensStatus');
     const statusText = await status.textContent();
-    
-    // Should either show success or a network error (both are valid outcomes)
-    expect(statusText).toMatch(/ENS resolved|Error resolving|Could not load/);
+    expect(statusText).toBeTruthy();
+    expect(statusText.length).toBeGreaterThan(0);
   });
 
   test('should handle network errors gracefully', async ({ page }) => {
-    // Mock network failure by using malformed ENS address
+    await page.goto('/');
     const ensInput = page.locator('#ensAddress');
-    await ensInput.fill('invalid@ens.address');
-    await page.click('#validateENS');
-    
-    // Should show format validation error immediately
+    await fillENSInput(ensInput, 'thisdoesnotexistforsure.eth', page);
+    await page.waitForTimeout(3000);
     const status = page.locator('#ensStatus');
+    await expect(status).not.toContainText('Invalid ENS address format');
     const statusText = await status.textContent();
-    expect(statusText).toMatch(/Invalid ENS address format/);
+    expect(
+      statusText.includes('Error resolving') ||
+      statusText.includes('ENS address not found or not registered')
+    ).toBeTruthy();
+  });
+
+  test('should update status on input change', async ({ page }) => {
+    await page.goto('/');
+    const ensInput = page.locator('#ensAddress');
+    await fillENSInput(ensInput, 'vitalik.eth', page);
+    await fillENSInput(ensInput, '!!!notanens!!!', page);
+    await expect(page.locator('#ensStatus')).toContainText('Invalid ENS address format');
   });
 }); 

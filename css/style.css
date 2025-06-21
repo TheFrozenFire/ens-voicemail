@@ -100,7 +100,7 @@ input[type="text"]:focus, input[type="file"]:focus {
 .status.error { background: #3f001a; color: #ff3b3b; }
 .status.info { background: #00213f; color: #00cfff; }
 
-.input-section, .recording-section, .preview-section, .decode-section, .debug-section, .metrics-section {
+.input-section, .recording-section, .preview-section, .decode-section, .debug-section {
     margin-bottom: 32px;
     padding: 20px 0 0 0;
     border-bottom: 1px solid #222;
@@ -152,122 +152,6 @@ input[type="text"]:focus, input[type="file"]:focus {
 .log-error { color: #ff3b3b; }
 .log-warn { color: #ffb300; }
 
-/* Metrics Dashboard Styles */
-.metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
-    margin: 16px 0;
-}
-
-.metric-card {
-    background: #1a1d24;
-    border: 1px solid #333;
-    border-radius: 8px;
-    padding: 16px;
-    transition: border-color 0.2s;
-}
-
-.metric-card:hover {
-    border-color: #00ff99;
-}
-
-.metric-card h3 {
-    color: #00cfff;
-    font-size: 1rem;
-    margin-bottom: 12px;
-    border-bottom: 1px solid #333;
-    padding-bottom: 8px;
-}
-
-.metric-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    padding: 4px 0;
-}
-
-.metric-label {
-    color: #c3c6ca;
-    font-size: 0.9rem;
-    font-weight: 500;
-}
-
-.metric-value {
-    color: #00ff99;
-    font-weight: 600;
-    font-size: 0.95rem;
-}
-
-.metric-value.warning {
-    color: #ffb300;
-}
-
-.metric-value.error {
-    color: #ff3b3b;
-}
-
-.kpi-validation {
-    margin-top: 20px;
-    padding: 16px;
-    background: #1a1d24;
-    border-radius: 8px;
-    border: 1px solid #333;
-}
-
-.kpi-validation h3 {
-    color: #00cfff;
-    margin-bottom: 12px;
-}
-
-.kpi-status {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.kpi-item {
-    display: flex;
-    align-items: center;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    font-weight: 500;
-}
-
-.kpi-item.success {
-    background: #003f2e;
-    color: #00ff99;
-    border: 1px solid #00ff99;
-}
-
-.kpi-item.warning {
-    background: #3f2e00;
-    color: #ffb300;
-    border: 1px solid #ffb300;
-}
-
-.kpi-item.error {
-    background: #3f001a;
-    color: #ff3b3b;
-    border: 1px solid #ff3b3b;
-}
-
-.kpi-item .kpi-icon {
-    margin-right: 8px;
-    font-size: 1.1rem;
-}
-
-.kpi-item .kpi-message {
-    flex: 1;
-}
-
-.kpi-item .kpi-value {
-    font-weight: 600;
-    margin-left: 8px;
-}
-
 @media (max-width: 800px) {
     .container {
         max-width: 98vw;
@@ -277,10 +161,6 @@ input[type="text"]:focus, input[type="file"]:focus {
     h2 { font-size: 1.2rem; }
     h3 { font-size: 1.1rem; }
     .controls { flex-direction: column; gap: 0; }
-    .metrics-grid {
-        grid-template-columns: 1fr;
-        gap: 12px;
-    }
 }
 
 @media (max-width: 500px) {
@@ -289,13 +169,5 @@ input[type="text"]:focus, input[type="file"]:focus {
     }
     #toneWaveform {
         height: 60px;
-    }
-    .metric-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-    }
-    .metric-value {
-        align-self: flex-end;
     }
 }

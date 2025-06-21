@@ -73,16 +73,31 @@ export class ENSResolver {
         if (!address || !address.trim()) {
             return { valid: false, error: 'Please enter an ENS address' };
         }
-        
-        // Basic ENS validation (ends with .eth and has valid characters)
-        const ensRegex = /^[a-zA-Z0-9-]+\.eth$/;
+        // ENS names must:
+        // - be lowercase a-z, 0-9, or hyphens
+        // - not start or end with hyphen
+        // - not have consecutive hyphens
+        // - at least 3 chars before .eth
+        // - end with .eth
+        const ensRegex = /^(?!-)(?!.*--)[a-z0-9-]{3,}\.eth$/;
         if (!ensRegex.test(address)) {
-            return { 
-                valid: false, 
-                error: 'Invalid ENS address format. Must end with .eth and contain only letters, numbers, and hyphens.' 
+            return {
+                valid: false,
+                error: 'Invalid ENS address format. Must be lowercase, at least 3 characters, only a-z, 0-9, hyphens, and end with .eth.'
             };
         }
-        
+        if (address.startsWith('-') || address.endsWith('-')) {
+            return {
+                valid: false,
+                error: 'ENS address cannot start or end with a hyphen.'
+            };
+        }
+        if (address.includes('--')) {
+            return {
+                valid: false,
+                error: 'ENS address cannot contain consecutive hyphens.'
+            };
+        }
         return { valid: true };
     }
 
