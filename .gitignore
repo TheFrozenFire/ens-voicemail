@@ -12,6 +12,9 @@ debug.log
 # Node modules
 node_modules/
 
+# Build output
+dist/
+
 # Playwright test results
 test-results/
 playwright-report/
