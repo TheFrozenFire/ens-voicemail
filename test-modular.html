@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ENS Voicemail - Modular Test</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+    <script src="js/metrics.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 ENS Voicemail System - Modular Test</h1>
+            <p>Testing the modular architecture</p>
+        </header>
+
+        <main>
+            <section class="input-section">
+                <h2>ENS Address Input</h2>
+                <div class="input-group">
+                    <label for="ensAddress">ENS Address:</label>
+                    <input type="text" id="ensAddress" placeholder="vitalik.eth" value="vitalik.eth">
+                    <div id="ensStatus" class="status"></div>
+                </div>
+                <div class="address-display">
+                    <strong>Resolved Address:</strong> <span id="displayAddress">-</span>
+                </div>
+            </section>
+
+            <section class="tone-section">
+                <h2>DTMF Tone Generation</h2>
+                <button id="generateTones" class="btn btn-primary">Generate DTMF Tones</button>
+                <div class="tone-info">
+                    <p><strong>Tone Duration:</strong> <span id="toneDuration">-</span></p>
+                    <p><strong>Total Length:</strong> <span id="totalLength">-</span></p>
+                </div>
+                <canvas id="toneWaveform" width="800" height="100"></canvas>
+                <div id="audioPlayer"></div>
+            </section>
+
+            <section class="debug-section">
+                <h2>Debug Logs</h2>
+                <div id="debugLogs" class="debug-logs"></div>
+            </section>
+        </main>
+    </div>
+
+    <script type="module" src="js/main-modular.js"></script>
+</body>
+</html> 
