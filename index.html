@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ENS Voicemail System - DTMF Audio Generator</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 ENS Voicemail System</h1>
+            <p>Generate DTMF tones to encode ENS addresses in your voicemail messages</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <label for="ensAddress">Your ENS Address:</label>
+                <div class="input-group">
+                    <input type="text" id="ensAddress" placeholder="e.g., vitalik.eth" value="vitalik.eth">
+                    <button id="validateENS" class="btn-secondary">🔍 Validate ENS</button>
+                </div>
+                <div id="ensStatus" class="status"></div>
+            </div>
+
+            <div class="recording-section">
+                <h2>🎤 Record Your Voicemail</h2>
+                <div class="controls">
+                    <button id="startRecording" class="btn-primary">🎤 Start Recording</button>
+                    <button id="stopRecording" class="btn-danger" disabled>⏹️ Stop Recording</button>
+                    <button id="playRecording" class="btn-secondary" disabled>▶️ Play Recording</button>
+                </div>
+                
+                <div class="recording-status">
+                    <div id="recordingIndicator" class="hidden">
+                        <span class="pulse">🔴</span> Recording...
+                    </div>
+                    <div id="recordingTime">00:00</div>
+                </div>
+            </div>
+
+            <div class="preview-section">
+                <h2>🎵 Generate DTMF Tones</h2>
+                <div class="controls">
+                    <button id="generateTones" class="btn-primary">🎵 Generate & Play Tones</button>
+                    <button id="playWithTones" class="btn-secondary" disabled>🎧 Play with Recording</button>
+                    <button id="downloadRecording" class="btn-secondary" disabled>💾 Download Combined Audio</button>
+                </div>
+                
+                <div class="tone-info">
+                    <h3>DTMF Tone Information</h3>
+                    <div id="toneDetails">
+                        <p><strong>ENS Address:</strong> <span id="displayAddress">-</span></p>
+                        <p><strong>Tone Duration:</strong> <span id="toneDuration">-</span></p>
+                        <p><strong>Total Length:</strong> <span id="totalLength">-</span></p>
+                        <p><strong>Encoding:</strong> <span>DTMF Dual-Tone (Standard)</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="decode-section">
+                <h2>🔍 Decode ENS from Audio</h2>
+                <div class="controls">
+                    <input type="file" id="audioFile" accept="audio/*" class="file-input">
+                    <button id="decodeTones" class="btn-primary">🔍 Decode DTMF</button>
+                </div>
+                <div id="decodeResult" class="result-box"></div>
+            </div>
+
+            <div class="debug-section">
+                <h2>📋 Debug Logs</h2>
+                <div class="controls">
+                    <button id="clearLogs" class="btn-secondary">🗑️ Clear Logs</button>
+                    <button id="copyLogs" class="btn-secondary">📋 Copy Logs</button>
+                </div>
+                <div id="debugLogs" class="debug-box"></div>
+            </div>
+        </main>
+
+        <footer>
+            <p>ENS Voicemail System - Encode your ENS address as standard DTMF tones for phone compatibility</p>
+        </footer>
+    </div>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
