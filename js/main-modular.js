@@ -390,7 +390,39 @@ class ENSVoicemailSystem {
                     }
                     
                     // Create the audio widget
-                    audioWidget.createAudioWidget(tones, audioContainer);
+                    audioWidget.createAudioWidget(tones, audioContainer, (audioEl, container) => {
+                        // Add a decode button below the audio widget
+                        let decodeBtn = container.querySelector('.decode-generated-audio-btn');
+                        if (!decodeBtn) {
+                            decodeBtn = document.createElement('button');
+                            decodeBtn.className = 'decode-generated-audio-btn btn-secondary';
+                            decodeBtn.textContent = '🔍 Decode This Audio';
+                            decodeBtn.style.marginTop = '10px';
+                            decodeBtn.style.display = 'block';
+                            container.appendChild(decodeBtn);
+                        }
+                        decodeBtn.onclick = async () => {
+                            try {
+                                // Fetch the blob from the audio src
+                                const response = await fetch(audioEl.src);
+                                const arrayBuffer = await response.arrayBuffer();
+                                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                                const decodedAddress = this.decodeTonesFromAudio(audioBuffer);
+                                if (decodedAddress) {
+                                    uiManager.updateDecodeResult(`Decoded ENS Address: ${decodedAddress}`);
+                                    uiManager.updateENSStatus('DTMF tones decoded successfully.', 'success');
+                                } else {
+                                    uiManager.updateDecodeResult('No valid ENS address found in the audio.');
+                                    uiManager.updateENSStatus('No valid ENS address found in the audio.', 'error');
+                                }
+                            } catch (err) {
+                                uiManager.updateENSStatus('❌ Error decoding generated audio.', 'error');
+                                uiManager.updateDecodeResult('Error decoding generated audio.');
+                                uiManager.addLogEntry(err.message, 'error');
+                            }
+                        };
+                    });
                     
                     // Hide the original audio element
                     audioPlayer.style.display = 'none';

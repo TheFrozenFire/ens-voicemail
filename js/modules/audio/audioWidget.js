@@ -85,8 +85,11 @@ export class AudioWidget {
 
     /**
      * Create and display audio widget
+     * @param {Array} tones - The DTMF tones array
+     * @param {HTMLElement} containerElement - The container to append the widget
+     * @param {Function} [afterCreateCallback] - Optional callback(audioWidget, containerElement)
      */
-    createAudioWidget(tones, containerElement) {
+    createAudioWidget(tones, containerElement, afterCreateCallback) {
         try {
             console.log('🎵 Creating audio buffer for widget...');
             
@@ -122,6 +125,11 @@ export class AudioWidget {
             // Add the audio widget to the container
             containerElement.appendChild(audioWidget);
             console.log('🎵 Audio widget added to container');
+            
+            // Call the callback if provided
+            if (typeof afterCreateCallback === 'function') {
+                afterCreateCallback(audioWidget, containerElement);
+            }
             
             console.log('🎵 Audio widget created successfully');
             return audioWidget;
